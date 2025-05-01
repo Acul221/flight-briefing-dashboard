@@ -23,5 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local Netlify folder
-.netlify
+# Optional: only ignore Netlify state, not the config or functions
+.netlify/state.json
+
