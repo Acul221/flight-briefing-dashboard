@@ -1,34 +1,35 @@
 // src/pages/DashboardPage.jsx
+import { useState } from "react";
 import AirportSelector from '../components/ui/AirportSelector';
 import WeatherBox from '../components/ui/WeatherBox';
 import StatCard from '../components/ui/StatCard';
-import Breadcrumb from '../components/ui/Breadcrumb'; // ✅ Tambahkan import Breadcrumb
+import Breadcrumb from '../components/ui/Breadcrumb';
 import WindyWidget from '../components/ui/WindyWidget';
 import INASIAMWidget from '../components/ui/INASIAMWidget';
 import Clock from '../components/ui/Clock';
 
 function DashboardPage() {
+  const [selectedIcao, setSelectedIcao] = useState("WIII");
+
   return (
     <div className="p-6 space-y-6">
       {/* Breadcrumb Navigation */}
-      <Breadcrumb items={[
-        { label: 'Dashboard', to: '/' }
-      ]} />
-      
+      <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
+
       {/* Clock */}
       <Clock />
 
       {/* WindyWidget */}
       <WindyWidget />
 
-      {/* WindyWidget */}
+      {/* INASIAM Widget */}
       <INASIAMWidget />
 
       {/* Airport Selector */}
-      <AirportSelector />
+      <AirportSelector selectedIcao={selectedIcao} onSelect={setSelectedIcao} />
 
       {/* Weather Box */}
-      <WeatherBox />
+      <WeatherBox icao={selectedIcao} />
 
       {/* Statistik Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

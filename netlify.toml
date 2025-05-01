@@ -2,5 +2,8 @@
   functions = "netlify/functions"
   publish = "dist"
 
+[dev]
+  targetPort = 5173
+
 [functions]
   node_bundler = "esbuild"

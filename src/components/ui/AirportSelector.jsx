@@ -1,10 +1,13 @@
-function AirportSelector() {
+// src/components/ui/AirportSelector.jsx
+function AirportSelector({ selectedIcao, onSelect }) {
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
       <label className="block mb-2 font-semibold text-gray-800 dark:text-white">
         Select Airport
       </label>
       <select
+        value={selectedIcao}
+        onChange={(e) => onSelect(e.target.value)}
         className="w-full p-2 border rounded-md text-gray-900 dark:text-white bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
       >
         <option value="WIII">WIII - Soekarno-Hatta</option>
