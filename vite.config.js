@@ -3,10 +3,11 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  define: {
-    __DEFINES__: {}, // ✅ Tambahan ini
-  },
   build: {
     sourcemap: false,
+  },
+  define: {
+    __DEFINES__: {},
+    __HMR_CONFIG_NAME__: JSON.stringify(''),
   },
 });
