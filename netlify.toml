@@ -1,9 +1,9 @@
 [build]
-  functions = "netlify/functions"
-  publish = "dist"
+functions = "netlify/functions"   # 📦 Folder untuk backend functions
+publish = "dist"                  # 🧱 Hasil build frontend (Vite)
 
 [dev]
-  targetPort = 5173
+targetPort = 5173                 # 🚀 Port Vite Dev Server (local)
 
 [functions]
-  node_bundler = "esbuild"
+node_bundler = "esbuild"          # ⚙️ Netlify akan bundle function dengan esbuild (wajib untuk ES Modules)

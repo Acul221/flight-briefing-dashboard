@@ -6,4 +6,7 @@ export default defineConfig({
   define: {
     __HMR_CONFIG_NAME__: JSON.stringify(''),
   },
+  build: {
+    sourcemap: false,
+  },
 });
