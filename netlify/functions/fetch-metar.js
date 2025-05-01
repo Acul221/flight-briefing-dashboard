@@ -1,5 +1,5 @@
 // netlify/functions/fetch-metar.js
-exports.handler = async function(event) {
+export async function handler(event) {
   const icao = event.queryStringParameters.icao;
   const apiKey = process.env.AVWX_API_KEY;
 
@@ -16,4 +16,4 @@ exports.handler = async function(event) {
     statusCode: 200,
     body: JSON.stringify(data),
   };
-};
+}
