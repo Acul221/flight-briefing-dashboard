@@ -9,5 +9,6 @@ export default defineConfig({
   define: {
     __DEFINES__: {},
     __HMR_CONFIG_NAME__: JSON.stringify(''),
+    __BASE__: JSON.stringify('/'), // ✅ tambahkan ini
   },
 });
