@@ -1,5 +1,4 @@
 // src/pages/DashboardPage.jsx
-import { useState } from "react";
 import AirportSelector from '../components/ui/AirportSelector';
 import WeatherBox from '../components/ui/WeatherBox';
 import StatCard from '../components/ui/StatCard';
@@ -7,10 +6,9 @@ import Breadcrumb from '../components/ui/Breadcrumb';
 import WindyWidget from '../components/ui/WindyWidget';
 import INASIAMWidget from '../components/ui/INASIAMWidget';
 import Clock from '../components/ui/Clock';
+import BMKGWindTemp from '../components/ui/BMKGWindTemp'; // ✅ Tambahkan
 
 function DashboardPage() {
-  const [selectedIcao, setSelectedIcao] = useState("WIII");
-
   return (
     <div className="p-6 space-y-6">
       {/* Breadcrumb Navigation */}
@@ -22,14 +20,17 @@ function DashboardPage() {
       {/* WindyWidget */}
       <WindyWidget />
 
-      {/* INASIAM Widget */}
+      {/* INA-SIAM */}
       <INASIAMWidget />
 
       {/* Airport Selector */}
-      <AirportSelector selectedIcao={selectedIcao} onSelect={setSelectedIcao} />
+      <AirportSelector />
 
       {/* Weather Box */}
-      <WeatherBox icao={selectedIcao} />
+      <WeatherBox />
+
+      {/* BMKG WindTemp */}
+      <BMKGWindTemp />
 
       {/* Statistik Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
