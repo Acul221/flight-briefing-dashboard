@@ -44,3 +44,5 @@ function WeatherBox({ icao }) {
 }
 
 export default WeatherBox;
+
+// Debug log added to test commit
