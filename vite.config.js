@@ -17,6 +17,6 @@ export default defineConfig({
     __HMR_DIRECT_TARGET__: JSON.stringify(''),
     __HMR_TIMEOUT__: JSON.stringify(30000),
     __WS_TOKEN__: JSON.stringify(''),
-    __HMR_BASE__: JSON.stringify(''),
+    __HMR_ENABLE_OVERLAY__: false, // ✅ fix for error overlay
   },
 });
