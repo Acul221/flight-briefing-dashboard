@@ -1,4 +1,4 @@
-// src/pages/DashboardPage.jsx
+import { useState } from 'react';
 import AirportSelector from '../components/ui/AirportSelector';
 import WeatherBox from '../components/ui/WeatherBox';
 import StatCard from '../components/ui/StatCard';
@@ -6,33 +6,26 @@ import Breadcrumb from '../components/ui/Breadcrumb';
 import WindyWidget from '../components/ui/WindyWidget';
 import INASIAMWidget from '../components/ui/INASIAMWidget';
 import Clock from '../components/ui/Clock';
-import BMKGWindTemp from '../components/ui/BMKGWindTemp'; // ✅ Tambahkan
+import BMKGWindTemp from '../components/ui/BMKGWindTemp';
 
 function DashboardPage() {
+  const [icao, setIcao] = useState('');
+
   return (
     <div className="p-6 space-y-6">
-      {/* Breadcrumb Navigation */}
       <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
-
-      {/* Clock */}
       <Clock />
-
-      {/* WindyWidget */}
       <WindyWidget />
-
-      {/* INA-SIAM */}
       <INASIAMWidget />
 
-      {/* Airport Selector */}
-      <AirportSelector />
+      {/* Airport Selector terhubung ke state */}
+      <AirportSelector selectedIcao={icao} onSelect={setIcao} />
 
-      {/* Weather Box */}
-      <WeatherBox />
+      {/* WeatherBox menerima ICAO */}
+      <WeatherBox icao={icao} />
 
-      {/* BMKG WindTemp */}
       <BMKGWindTemp />
 
-      {/* Statistik Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Total Flights" value="128" />
         <StatCard title="Delays" value="5" />
