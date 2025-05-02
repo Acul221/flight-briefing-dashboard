@@ -10,6 +10,7 @@ export default defineConfig({
     __DEFINES__: {},
     __HMR_CONFIG_NAME__: JSON.stringify(''),
     __BASE__: JSON.stringify('/'),
+    __HMR_BASE__: JSON.stringify(''), // ✅ tambahkan ini
     __SERVER_HOST__: JSON.stringify(''),
     __HMR_PROTOCOL__: JSON.stringify(''),
     __HMR_PORT__: JSON.stringify(''),
@@ -17,6 +18,6 @@ export default defineConfig({
     __HMR_DIRECT_TARGET__: JSON.stringify(''),
     __HMR_TIMEOUT__: JSON.stringify(30000),
     __WS_TOKEN__: JSON.stringify(''),
-    __HMR_ENABLE_OVERLAY__: false, // ✅ fix for error overlay
+    __HMR_ENABLE_OVERLAY__: false,
   },
 });
