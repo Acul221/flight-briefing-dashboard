@@ -6,6 +6,8 @@ function WeatherBox({ icao }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    console.log("📡 ICAO received by WeatherBox:", icao); // Debug tambahan
+
     if (!icao || icao.length !== 4) {
       console.warn("Invalid or missing ICAO:", icao);
       setMetar("✈️ Please enter a valid 4-letter ICAO code.");
@@ -19,7 +21,7 @@ function WeatherBox({ icao }) {
         const res = await fetch(`/.netlify/functions/fetch-metar?icao=${icao}`);
         const data = await res.json();
         console.log("📦 METAR Response:", data);
-        setMetar(data?.raw || '⚠️ No METAR data available for this airport');
+        setMetar(data?.raw || "⚠️ No METAR data available for this airport");
       } catch (err) {
         console.error("❌ Fetch error:", err);
         setMetar("Failed to fetch METAR");
