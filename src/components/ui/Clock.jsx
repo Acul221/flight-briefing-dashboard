@@ -57,15 +57,15 @@ export default function RACClockWidget() {
   const dev = summary?.etdDeviation ?? null;
 
   return (
-    <div className="grid md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {/* Clock Section */}
       <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="flex flex-col items-center bg-white/30 dark:bg-gray-700/30 backdrop-blur-md rounded-xl shadow p-4">
+        <div className="min-w-[260px] w-full flex flex-col items-center bg-white/30 dark:bg-gray-700/30 backdrop-blur-md rounded-xl shadow p-6">
           <ClockIcon size={36} className="text-blue-600 dark:text-yellow-400 mb-1" />
           <h3 className="font-semibold text-gray-800 dark:text-white">Local Time</h3>
           <p className="font-mono text-sm text-gray-700 dark:text-gray-300 mt-1">{localTime}</p>
         </div>
-        <div className="flex flex-col items-center bg-white/30 dark:bg-gray-700/30 backdrop-blur-md rounded-xl shadow p-4">
+        <div className="min-w-[260px] w-full flex flex-col items-center bg-white/30 dark:bg-gray-700/30 backdrop-blur-md rounded-xl shadow p-6">
           <ClockIcon size={36} className="text-green-600 dark:text-yellow-400 mb-1" />
           <h3 className="font-semibold text-gray-800 dark:text-white">UTC Time</h3>
           <p className="font-mono text-sm text-gray-700 dark:text-gray-300 mt-1">{utcTime}</p>
@@ -73,4 +73,5 @@ export default function RACClockWidget() {
       </div>
     </div>
   );
+  
 }

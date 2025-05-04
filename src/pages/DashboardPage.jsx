@@ -8,6 +8,9 @@ import INASIAMWidget from '../components/ui/INASIAMWidget';
 import Clock from '../components/ui/Clock';
 import BMKGWindTemp from '../components/ui/BMKGWindTemp';
 import RACSnapshotWidget from '../components/ui/RACSnapshotWidget';
+import NewsWidget from '../components/NewsWidget';
+import ClockLocal from '../components/ui/ClockLocal';
+import ClockUTC from '../components/ui/ClockUTC';
 
 function DashboardPage() {
   const [icao, setIcao] = useState('');
@@ -16,27 +19,22 @@ function DashboardPage() {
     <div className="p-6 space-y-6">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Clock />
+      {/* NEWS WIDGET - Full Width */}
+      <NewsWidget />
+
+      {/* GRID WIDGETS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <ClockLocal />
+        <ClockUTC />
         <RACSnapshotWidget />
       </div>
 
+      {/* CUACA & TOOLS */}
+      <AirportSelector onSelect={setIcao} />
+      <WeatherBox icao={icao} />
       <WindyWidget />
       <INASIAMWidget />
-
-      {/* Airport Selector terhubung ke state */}
-      <AirportSelector selectedIcao={icao} onSelect={setIcao} />
-
-      {/* WeatherBox menerima ICAO */}
-      <WeatherBox icao={icao} />
-
       <BMKGWindTemp />
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard title="Total Flights" value="128" />
-        <StatCard title="Delays" value="5" />
-        <StatCard title="NOTAMs Active" value="22" />
-      </div>
     </div>
   );
 }

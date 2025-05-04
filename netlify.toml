@@ -7,3 +7,4 @@ targetPort = 5173                 # 🚀 Port Vite Dev Server (local)
 
 [functions]
 node_bundler = "esbuild"          # ⚙️ Netlify akan bundle function dengan esbuild (wajib untuk ES Modules)
+directory = "netlify/functions"
