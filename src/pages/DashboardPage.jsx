@@ -7,6 +7,7 @@ import WindyWidget from '../components/ui/WindyWidget';
 import INASIAMWidget from '../components/ui/INASIAMWidget';
 import Clock from '../components/ui/Clock';
 import BMKGWindTemp from '../components/ui/BMKGWindTemp';
+import RACSnapshotWidget from '../components/ui/RACSnapshotWidget';
 
 function DashboardPage() {
   const [icao, setIcao] = useState('');
@@ -14,7 +15,12 @@ function DashboardPage() {
   return (
     <div className="p-6 space-y-6">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
-      <Clock />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Clock />
+        <RACSnapshotWidget />
+      </div>
+
       <WindyWidget />
       <INASIAMWidget />
 

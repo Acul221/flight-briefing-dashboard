@@ -1,4 +1,4 @@
-import { Home, Settings } from 'lucide-react';
+import { Home, Settings, ClipboardList } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 function Sidebar({ collapsed }) {
@@ -6,6 +6,7 @@ function Sidebar({ collapsed }) {
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <Home size={18} /> },
+    { name: 'RAC Delay', path: '/rac-delay', icon: <ClipboardList size={18} /> }, // ← Tambahan ini
     { name: 'Settings', path: '/settings', icon: <Settings size={18} /> },
   ];
 

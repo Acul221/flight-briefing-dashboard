@@ -1,3 +1,12 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Scoped 24-hour format styling hanya untuk RAC Delay */
+.rac-scope input[type="time"]::-webkit-datetime-edit-ampm-field {
+  display: none;
+}
+
+.rac-scope input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1); /* Optional for dark mode */
+}
