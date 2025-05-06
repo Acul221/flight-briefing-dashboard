@@ -11,6 +11,7 @@ import RACSnapshotWidget from '../components/ui/RACSnapshotWidget';
 import NewsWidget from '../components/NewsWidget';
 import ClockLocal from '../components/ui/ClockLocal';
 import ClockUTC from '../components/ui/ClockUTC';
+import CompactWxAlert from '../components/ui/CompactWxAlert';
 
 function DashboardPage() {
   const [icao, setIcao] = useState('');
@@ -19,8 +20,11 @@ function DashboardPage() {
     <div className="p-6 space-y-6">
       <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
 
-      {/* NEWS WIDGET - Full Width */}
-      <NewsWidget />
+      {/* NEWS & WX ALERTS */}
+      <div className="space-y-4">
+        <NewsWidget />
+        <CompactWxAlert />
+      </div>
 
       {/* GRID WIDGETS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

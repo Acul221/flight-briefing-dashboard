@@ -8,6 +8,8 @@ const sources = [
   { name: 'AVWeb', url: 'https://www.avweb.com/feed/' },
   { name: 'Airline Geeks', url: 'https://airlinegeeks.com/feed/' },
   { name: 'Aviation Week', url: 'https://aviationweek.com/rss.xml' },
+  { name: 'Aviation News Online', url: 'https://rss.app/feeds/KHzvVE0NJYFhrbpz.xml' },
+  { name: 'AINonline', url: 'https://rss.app/feeds/FFDvmxCReyT4wdHu.xml' },
 ];
 
 exports.handler = async () => {
@@ -23,20 +25,25 @@ exports.handler = async () => {
           });
 
           const parsed = parser.parse(response.data);
-
           const items = Array.isArray(parsed.rss?.channel?.item)
             ? parsed.rss.channel.item
             : parsed.rss?.channel?.item
             ? [parsed.rss.channel.item]
             : [];
 
-            return items.slice(0, 2).map(item => ({
-                title: item.title,
-                link: item.link,
-                pubDate: item.pubDate,
-                source: name,
-              }));
-              
+          const selected = items
+            .filter(i => i.title && i.link)
+            .slice(0, 2) // max 2 items per source
+
+          console.log(`✔️ ${name}: ${selected.length} articles loaded`);
+
+          return selected.map(item => ({
+            title: item.title,
+            link: item.link,
+            pubDate: item.pubDate || new Date().toISOString(),
+            source: name,
+          }));
+
         } catch (err) {
           console.error(`❌ Failed to fetch ${name} → ${url}`);
           console.error(err.message);
@@ -48,9 +55,8 @@ exports.handler = async () => {
     const combined = allFeeds.flat();
 
     const sorted = combined
-      .filter(item => item.title && item.link)
       .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-      .slice(0, 3); // ⬅️ BATAS MAKSIMAL BERITA DI SINI
+      .slice(0, 10); // Final limit for all sources combined
 
     return {
       statusCode: 200,
