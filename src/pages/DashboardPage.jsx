@@ -21,7 +21,7 @@ function DashboardPage() {
       <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
 
       {/* NEWS & WX ALERTS */}
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <NewsWidget />
         <CompactWxAlert />
       </div>

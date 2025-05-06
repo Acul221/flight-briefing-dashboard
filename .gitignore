@@ -26,4 +26,6 @@ dist-ssr
 # Optional: only ignore Netlify state, not the config or functions
 .netlify/state.json
 .netlify
+.env
+
 
