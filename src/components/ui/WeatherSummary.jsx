@@ -1,10 +1,16 @@
 import { useState, useEffect } from "react";
+import IcaoInput from "./IcaoInput";
+import ReasoningBox from "./ReasoningBox";
+import NotamBox from "./NotamBox";
 
 export default function WeatherSummary() {
+  const [departure, setDeparture] = useState("");
   const [dest, setDest] = useState("");
-  const [alt, setAlt] = useState("");
+  const [additional, setAdditional] = useState("");
   const [summary, setSummary] = useState("Fetching weather summary...");
+  const [aiText, setAiText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const fetchFromFn = async (endpoint, param) => {
     try {
@@ -27,9 +33,9 @@ export default function WeatherSummary() {
 
   const handleUpdate = async () => {
     setLoading(true);
+    setAiText("");
     let narrative = `📍 Weather at your current location:\n`;
 
-    // Get current location
     const pos = await new Promise((resolve) =>
       navigator.geolocation.getCurrentPosition(
         (p) => resolve(p.coords),
@@ -48,7 +54,20 @@ export default function WeatherSummary() {
       narrative += "⚠️ Location not available.\n";
     }
 
-    // DEST
+    // Departure
+    if (departure) {
+      narrative += `\n🛫 Departure (${departure}):\n`;
+      const [metar, taf, sigmet] = await Promise.all([
+        fetchFromFn("fetch-metar", departure),
+        fetchFromFn("fetch-taf", departure),
+        fetchFromFn("fetch-sigmet", departure),
+      ]);
+      narrative += `METAR: ${metar?.raw || "N/A"}\n`;
+      narrative += `TAF: ${taf?.raw || "N/A"}\n`;
+      narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
+    }
+
+    // Destination
     if (dest) {
       narrative += `\n🛬 Destination (${dest}):\n`;
       const [metar, taf, sigmet] = await Promise.all([
@@ -59,24 +78,22 @@ export default function WeatherSummary() {
       narrative += `METAR: ${metar?.raw || "N/A"}\n`;
       narrative += `TAF: ${taf?.raw || "N/A"}\n`;
       narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
-      narrative += `NOTAM: Skipped (free-tier)\n`;
     }
 
-    // ALT
-    if (alt) {
-      narrative += `\n🛬 Alternate (${alt}):\n`;
+    // Additional
+    if (additional) {
+      narrative += `\n🛬 Additional Airport (${additional}):\n`;
       const [metar, taf, sigmet] = await Promise.all([
-        fetchFromFn("fetch-metar", alt),
-        fetchFromFn("fetch-taf", alt),
-        fetchFromFn("fetch-sigmet", alt),
+        fetchFromFn("fetch-metar", additional),
+        fetchFromFn("fetch-taf", additional),
+        fetchFromFn("fetch-sigmet", additional),
       ]);
       narrative += `METAR: ${metar?.raw || "N/A"}\n`;
       narrative += `TAF: ${taf?.raw || "N/A"}\n`;
       narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
-      narrative += `NOTAM: Skipped (free-tier)\n`;
     }
 
-    // GPT
+    // AI Reasoning
     try {
       const res = await fetch("/.netlify/functions/get-weather-gpt", {
         method: "POST",
@@ -84,55 +101,85 @@ export default function WeatherSummary() {
         body: JSON.stringify({ narrative }),
       });
       const data = await res.json();
-      if (data.analysis) {
-        narrative += `\n\n🧠 AI Reasoning:\n${data.analysis}`;
-      } else {
-        narrative += "\n\n⚠️ AI Reasoning unavailable.";
-      }
+      setAiText(data.analysis || "⚠️ AI Reasoning unavailable.");
     } catch {
-      narrative += "\n\n⚠️ AI Reasoning error.";
+      setAiText("⚠️ AI Reasoning error.");
     }
 
     setSummary(narrative);
     setLoading(false);
   };
 
-  // Auto-update on mount
   useEffect(() => {
     handleUpdate();
   }, []);
 
   return (
     <section className="p-6 mt-6 max-w-6xl mx-auto bg-white/30 dark:bg-gray-800/40 backdrop-blur-md rounded-xl shadow">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-2">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">🛰️ Weather Summary</h2>
-        <button
-          onClick={handleUpdate}
-          className="flex items-center bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          🔄 Update Weather
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleUpdate}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            🔄 Update
+          </button>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white px-3 py-2 rounded hover:opacity-80"
+          >
+            {expanded ? "▾ Hide" : "▸ Show"}
+          </button>
+        </div>
       </div>
-      <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-        Based on your location, destination, and alternate airports
-      </p>
-      <div className="grid sm:grid-cols-2 gap-4 mb-4">
-        <input
-          className="p-2 border rounded w-full bg-white dark:bg-gray-900 text-gray-800 dark:text-white"
-          placeholder="Destination ICAO (e.g., WIII)"
-          value={dest}
-          onChange={(e) => setDest(e.target.value.toUpperCase())}
-        />
-        <input
-          className="p-2 border rounded w-full bg-white dark:bg-gray-900 text-gray-800 dark:text-white"
-          placeholder="Alternate ICAO (e.g., WARR)"
-          value={alt}
-          onChange={(e) => setAlt(e.target.value.toUpperCase())}
-        />
-      </div>
-      <pre className="bg-gray-50 dark:bg-gray-900 p-4 rounded border text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line">
-        {loading ? "Loading..." : summary}
-      </pre>
+
+      {expanded && (
+        <>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Based on your location, departure, destination, and additional airports
+          </p>
+
+          <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <IcaoInput
+              label="Departure ICAO"
+              placeholder="e.g., WADD"
+              value={departure}
+              onChange={setDeparture}
+            />
+            <IcaoInput
+              label="Destination ICAO"
+              placeholder="e.g., WIII"
+              value={dest}
+              onChange={setDest}
+            />
+            <IcaoInput
+              label="Additional ICAO"
+              placeholder="e.g., WARR"
+              value={additional}
+              onChange={setAdditional}
+            />
+          </div>
+
+          <pre className="bg-gray-50 dark:bg-gray-900 p-4 rounded border text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line min-h-[160px] flex items-center justify-center">
+            {loading ? (
+              <span className="animate-pulse text-blue-600 dark:text-blue-400">
+                ⏳ Generating weather narrative...
+              </span>
+            ) : (
+              summary
+            )}
+          </pre>
+
+          <ReasoningBox text={aiText} />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            {departure && <NotamBox icao={departure} title="Departure NOTAMs" />}
+            {dest && <NotamBox icao={dest} title="Destination NOTAMs" />}
+            {additional && <NotamBox icao={additional} title="Additional NOTAMs" />}
+          </div>
+        </>
+      )}
     </section>
   );
 }
