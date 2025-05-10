@@ -1,12 +1,13 @@
-import { Home, Settings, ClipboardList } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Home, Settings, ClipboardList, Clock } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom'; // ✅ cukup satu kali
 
 function Sidebar({ collapsed }) {
   const location = useLocation();
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <Home size={18} /> },
-    { name: 'RAC Delay', path: '/rac-delay', icon: <ClipboardList size={18} /> }, // ← Tambahan ini
+    { name: 'RAC Delay', path: '/rac-delay', icon: <ClipboardList size={18} /> },
+    { name: 'Time Tools', path: '/time-tools', icon: <Clock size={18} /> },
     { name: 'Settings', path: '/settings', icon: <Settings size={18} /> },
   ];
 

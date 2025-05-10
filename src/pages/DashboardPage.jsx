@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AirportSelector from '../components/ui/AirportSelector';
 import WeatherBox from '../components/ui/WeatherBox';
+import WeatherSummary from '../components/ui/WeatherSummary';
 import StatCard from '../components/ui/StatCard';
 import Breadcrumb from '../components/ui/Breadcrumb';
 import WindyWidget from '../components/ui/WindyWidget';
@@ -17,7 +18,8 @@ function DashboardPage() {
   const [icao, setIcao] = useState('');
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* BREADCRUMB */}
       <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
 
       {/* NEWS & WX ALERTS */}
@@ -26,16 +28,21 @@ function DashboardPage() {
         <CompactWxAlert />
       </div>
 
-      {/* GRID WIDGETS */}
+      {/* CLOCKS & RAC SNAPSHOT */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <ClockLocal />
         <ClockUTC />
         <RACSnapshotWidget />
       </div>
 
-      {/* CUACA & TOOLS */}
+      {/* AIRPORT SELECTOR + METAR BOX */}
       <AirportSelector onSelect={setIcao} />
       <WeatherBox icao={icao} />
+
+      {/* WEATHER SUMMARY */}
+      <WeatherSummary />
+
+      {/* WEATHER WIDGETS */}
       <WindyWidget />
       <INASIAMWidget />
       <BMKGWindTemp />

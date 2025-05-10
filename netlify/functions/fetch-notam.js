@@ -1,5 +1,3 @@
-// netlify/functions/fetch-metar.js
-
 export async function handler(event) {
   const icao = event.queryStringParameters.icao;
   const apiKey = process.env.AVWX_API_KEY;
@@ -19,7 +17,7 @@ export async function handler(event) {
   }
 
   try {
-    const response = await fetch(`https://avwx.rest/api/metar/${icao}`, {
+    const response = await fetch(`https://avwx.rest/api/notam/${icao}`, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         Accept: "application/json",
@@ -29,7 +27,7 @@ export async function handler(event) {
     if (!response.ok) {
       return {
         statusCode: response.status,
-        body: JSON.stringify({ error: `Failed to fetch METAR: ${response.statusText}` })
+        body: JSON.stringify({ error: `Failed to fetch NOTAM: ${response.statusText}` })
       };
     }
 

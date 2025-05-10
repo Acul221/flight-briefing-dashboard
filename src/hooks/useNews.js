@@ -1,26 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 const useNews = () => {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchNews = async () => {
-      try {
-        const res = await fetch('/.netlify/functions/fetch-news');
-        const data = await res.json();
-        setArticles(data);
-      } catch (error) {
-        console.error('Failed to fetch news:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchNews = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/.netlify/functions/fetch-news');
 
-    fetchNews();
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        console.warn('⚠️ Unexpected response (not JSON):', text.slice(0, 100));
+        throw new Error('Response is not JSON');
+      }
+
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.warn('⚠️ Unexpected news format:', data);
+        return;
+      }
+
+      setArticles(data);
+    } catch (error) {
+      console.error('Failed to fetch news:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { articles, loading };
+  useEffect(() => {
+    fetchNews();
+  }, [fetchNews]);
+
+  return { articles, loading, refresh: fetchNews };
 };
 
 export default useNews;

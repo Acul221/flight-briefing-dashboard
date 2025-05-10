@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { XMLParser } = require('fast-xml-parser');
+
 const parser = new XMLParser();
 
 const ensureArray = (data) => {
@@ -13,75 +14,77 @@ exports.handler = async () => {
 
     // 1. BMKG
     try {
-      const bmkgRes = await axios.get('https://rss.app/feeds/wwH1cOHOD2wH1Mqf.xml');
-      const parsed = parser.parse(bmkgRes.data);
+      const res = await axios.get('https://rss.app/feeds/wwH1cOHOD2wH1Mqf.xml', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (FlightBriefingBot)' }
+      });
+      const parsed = parser.parse(res.data);
       const items = ensureArray(parsed?.rss?.channel?.item);
       const bmkgAlerts = items.slice(0, 3).map((item) => ({
         type: 'BMKG',
         message: item.title,
-        link: item.link, // Bisa diarahkan langsung ke detail
+        link: item.link,
       }));
       allAlerts.push(...bmkgAlerts);
     } catch (err) {
       console.error('❌ BMKG Fetch Failed:', err.message);
     }
 
-    // 2. GIS (NOAA)
+    // 2. GIS
     try {
-      const gisRes = await axios.get('https://www.nhc.noaa.gov/gis-ep.xml');
-      const parsedGIS = parser.parse(gisRes.data);
-      const gisItems = ensureArray(parsedGIS?.rss?.channel?.item);
-      const gisAlerts = gisItems.slice(0, 1).map((item) => ({
+      const res = await axios.get('https://www.nhc.noaa.gov/gis-ep.xml');
+      const parsed = parser.parse(res.data);
+      const items = ensureArray(parsed?.rss?.channel?.item);
+      const alerts = items.slice(0, 1).map(item => ({
         type: 'GIS',
         message: item.title,
         link: item.link || null,
       }));
-      allAlerts.push(...gisAlerts);
+      allAlerts.push(...alerts);
     } catch (err) {
       console.error('❌ GIS Fetch Failed:', err.message);
     }
 
-    // 3. Outlook (NOAA)
+    // 3. Outlook
     try {
-      const outlookRes = await axios.get('https://www.nhc.noaa.gov/xml/TWOEP.xml');
-      const parsedOutlook = parser.parse(outlookRes.data);
-      const outlookItems = ensureArray(parsedOutlook?.rss?.channel?.item);
-      const outlookAlerts = outlookItems.slice(0, 1).map((item) => ({
+      const res = await axios.get('https://www.nhc.noaa.gov/xml/TWOEP.xml');
+      const parsed = parser.parse(res.data);
+      const items = ensureArray(parsed?.rss?.channel?.item);
+      const alerts = items.slice(0, 1).map(item => ({
         type: 'Outlook',
         message: item.title,
         link: item.link || null,
       }));
-      allAlerts.push(...outlookAlerts);
+      allAlerts.push(...alerts);
     } catch (err) {
       console.error('❌ Outlook Fetch Failed:', err.message);
     }
 
-    // 4. Summary (NOAA)
+    // 4. Summary
     try {
-      const summaryRes = await axios.get('https://www.nhc.noaa.gov/xml/TWSEP.xml');
-      const parsedSummary = parser.parse(summaryRes.data);
-      const summaryItems = ensureArray(parsedSummary?.rss?.channel?.item);
-      const summaryAlerts = summaryItems.slice(0, 1).map((item) => ({
+      const res = await axios.get('https://www.nhc.noaa.gov/xml/TWSEP.xml');
+      const parsed = parser.parse(res.data);
+      const items = ensureArray(parsed?.rss?.channel?.item);
+      const alerts = items.slice(0, 1).map(item => ({
         type: 'Summary',
         message: item.title,
         link: item.link || null,
       }));
-      allAlerts.push(...summaryAlerts);
+      allAlerts.push(...alerts);
     } catch (err) {
       console.error('❌ Summary Fetch Failed:', err.message);
     }
 
     // 5. Atlantic TC Wallet
     try {
-      const atcRes = await axios.get('https://www.nhc.noaa.gov/nhc_at4.xml');
-      const parsedATC = parser.parse(atcRes.data);
-      const atcItems = ensureArray(parsedATC?.rss?.channel?.item);
-      const atcAlerts = atcItems.slice(0, 1).map((item) => ({
+      const res = await axios.get('https://www.nhc.noaa.gov/nhc_at4.xml');
+      const parsed = parser.parse(res.data);
+      const items = ensureArray(parsed?.rss?.channel?.item);
+      const alerts = items.slice(0, 1).map(item => ({
         type: 'Atlantic',
         message: item.title,
         link: item.link || null,
       }));
-      allAlerts.push(...atcAlerts);
+      allAlerts.push(...alerts);
     } catch (err) {
       console.error('❌ Atlantic Fetch Failed:', err.message);
     }
@@ -90,7 +93,8 @@ exports.handler = async () => {
       statusCode: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'max-age=300',
+        'Cache-Control': 'no-store', // prevent stale cache
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(allAlerts),
     };

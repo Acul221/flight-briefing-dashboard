@@ -13,9 +13,9 @@ const alertIcons = {
 };
 
 const CompactWxAlert = () => {
-  const { alerts, loading, lastUpdated, refresh } = useAlerts();
+  const { alerts = [], loading, lastUpdated, refresh } = useAlerts();
 
-  if (loading || alerts.length === 0) return null;
+  if (loading && alerts.length === 0) return null; // prevent flashing
 
   return (
     <motion.div
@@ -30,30 +30,40 @@ const CompactWxAlert = () => {
         </h2>
         <div className="flex items-center gap-2 text-xs text-red-500 dark:text-red-400">
           {lastUpdated && <span>Last updated: {lastUpdated}</span>}
-          <button
-            onClick={refresh}
-            className="px-2 py-0.5 bg-red-100 dark:bg-red-800 hover:bg-red-200 dark:hover:bg-red-700 rounded text-xs font-semibold"
-          >
-            🔄 Update
-          </button>
+          {typeof refresh === 'function' && (
+            <button
+              onClick={refresh}
+              disabled={loading}
+              className="px-2 py-0.5 bg-red-100 dark:bg-red-800 hover:bg-red-200 dark:hover:bg-red-700 rounded text-xs font-semibold disabled:opacity-50"
+            >
+              {loading ? '🔄 Loading...' : '🔄 Update'}
+            </button>
+          )}
         </div>
       </div>
 
       {alerts.map((alert, i) => (
         <div key={i} className="flex items-start gap-2 leading-snug">
           <span>{alertIcons[alert.type] || '🔔'}</span>
-          {alert.link ? (
-            <a
-              href={alert.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-red-600 dark:hover:text-red-300"
-            >
-              {alert.message}
-            </a>
-          ) : (
-            <span>{alert.message}</span>
-          )}
+          <div>
+            {alert.link ? (
+              <a
+                href={alert.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-red-600 dark:hover:text-red-300"
+              >
+                {alert.message}
+              </a>
+            ) : (
+              <span>{alert.message}</span>
+            )}
+            {alert.type && (
+              <div className="text-xs text-red-400 dark:text-red-500 italic">
+                Source: {alert.type}
+              </div>
+            )}
+          </div>
         </div>
       ))}
     </motion.div>
