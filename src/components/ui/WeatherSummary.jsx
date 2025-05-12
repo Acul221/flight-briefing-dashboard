@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import IcaoInput from "./IcaoInput";
 import ReasoningBox from "./ReasoningBox";
 import NotamBox from "./NotamBox";
+import ExternalToolsBox from "./ExternalToolsBox";
 
 export default function WeatherSummary() {
   const [departure, setDeparture] = useState("");
@@ -54,7 +55,6 @@ export default function WeatherSummary() {
       narrative += "⚠️ Location not available.\n";
     }
 
-    // Departure
     if (departure) {
       narrative += `\n🛫 Departure (${departure}):\n`;
       const [metar, taf, sigmet] = await Promise.all([
@@ -67,7 +67,6 @@ export default function WeatherSummary() {
       narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
     }
 
-    // Destination
     if (dest) {
       narrative += `\n🛬 Destination (${dest}):\n`;
       const [metar, taf, sigmet] = await Promise.all([
@@ -80,7 +79,6 @@ export default function WeatherSummary() {
       narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
     }
 
-    // Additional
     if (additional) {
       narrative += `\n🛬 Additional Airport (${additional}):\n`;
       const [metar, taf, sigmet] = await Promise.all([
@@ -93,7 +91,6 @@ export default function WeatherSummary() {
       narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
     }
 
-    // AI Reasoning
     try {
       const res = await fetch("/.netlify/functions/get-weather-gpt", {
         method: "POST",
@@ -117,7 +114,9 @@ export default function WeatherSummary() {
   return (
     <section className="p-6 mt-6 max-w-6xl mx-auto bg-white/30 dark:bg-gray-800/40 backdrop-blur-md rounded-xl shadow">
       <div className="flex justify-between items-center mb-2">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">🛰️ Weather Summary</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+          🛰️ Weather Summary and NOTAM
+        </h2>
         <div className="flex gap-2">
           <button
             onClick={handleUpdate}
@@ -178,6 +177,8 @@ export default function WeatherSummary() {
             {dest && <NotamBox icao={dest} title="Destination NOTAMs" />}
             {additional && <NotamBox icao={additional} title="Additional NOTAMs" />}
           </div>
+
+          <ExternalToolsBox />
         </>
       )}
     </section>

@@ -8,8 +8,8 @@ import NewsWidget from '../components/NewsWidget';
 import CompactWxAlert from '../components/ui/CompactWxAlert';
 import WindyWidget from '../components/ui/WindyWidget';
 import INASIAMWidget from '../components/ui/INASIAMWidget';
-import BMKGWindTemp from '../components/ui/BMKGWindTemp';
 import SectionTitle from '../components/ui/SectionTitle';
+import CZIBWidget from '../components/ui/CZIBWidget'; // ⬅️ Tambahkan ini
 
 function DashboardPage() {
   const [showWidgets, setShowWidgets] = useState(true);
@@ -26,6 +26,11 @@ function DashboardPage() {
           <NewsWidget />
           <CompactWxAlert />
         </div>
+      </div>
+
+      {/* CZIB Alerts */}
+      <div>
+        <CZIBWidget />
       </div>
 
       {/* Clock & Ramp Tools */}
@@ -52,7 +57,7 @@ function DashboardPage() {
             onClick={() => setShowWidgets(!showWidgets)}
             className="text-sm px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
           >
-            {showWidgets ? "▾ Hide Widgets" : "▸ Show Widgets"}
+            {showWidgets ? '▾ Hide Widgets' : '▸ Show Widgets'}
           </button>
         </div>
 
@@ -60,7 +65,6 @@ function DashboardPage() {
           <div className="space-y-6">
             <WindyWidget />
             <INASIAMWidget />
-            <BMKGWindTemp />
           </div>
         )}
       </div>
