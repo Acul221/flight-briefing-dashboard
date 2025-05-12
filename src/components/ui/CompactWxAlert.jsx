@@ -19,33 +19,44 @@ const CompactWxAlert = () => {
 
   return (
     <motion.div
-      className="w-full bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-red-200 dark:border-red-700 text-red-800 dark:text-red-200 rounded-2xl px-4 py-3 shadow-md text-sm font-medium space-y-2"
+      className="w-full bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-red-300 dark:border-red-700 text-red-800 dark:text-red-200 rounded-2xl px-4 py-4 shadow-md text-sm font-medium space-y-3 transition-all duration-300"
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <div className="flex justify-between items-center mb-1">
-        <h2 className="text-base font-semibold text-red-700 dark:text-red-300">
-          ⚠️ Weather Alerts
-        </h2>
-        <div className="flex items-center gap-2 text-xs text-red-500 dark:text-red-400">
-          {lastUpdated && <span>Last updated: {lastUpdated}</span>}
-          {typeof refresh === 'function' && (
-            <button
-              onClick={refresh}
-              disabled={loading}
-              className="px-2 py-0.5 bg-red-100 dark:bg-red-800 hover:bg-red-200 dark:hover:bg-red-700 rounded text-xs font-semibold disabled:opacity-50"
-            >
-              {loading ? '🔄 Loading...' : '🔄 Update'}
-            </button>
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-base font-semibold text-red-700 dark:text-red-300 mb-0.5">
+            ⚠️ Weather Alerts
+          </h2>
+          {lastUpdated && (
+            <p className="text-xs text-red-500 dark:text-red-400">
+              Last updated: {lastUpdated}
+            </p>
           )}
         </div>
+
+        {typeof refresh === 'function' && (
+          <motion.button
+            onClick={refresh}
+            disabled={loading}
+            whileTap={{ scale: 0.95 }}
+            className="text-xs px-3 py-1 rounded bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 transition"
+          >
+            {loading ? '🔄 Loading...' : '🔄 Update'}
+          </motion.button>
+        )}
       </div>
 
+      {/* Alerts */}
       {alerts.map((alert, i) => (
-        <div key={i} className="flex items-start gap-2 leading-snug">
-          <span>{alertIcons[alert.type] || '🔔'}</span>
-          <div>
+        <div
+          key={i}
+          className="flex items-start gap-2 border-l-2 border-red-400/40 pl-2"
+        >
+          <span className="text-lg">{alertIcons[alert.type] || '🔔'}</span>
+          <div className="space-y-0.5">
             {alert.link ? (
               <a
                 href={alert.link}

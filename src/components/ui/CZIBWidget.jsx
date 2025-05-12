@@ -6,30 +6,7 @@ const CZIBWidget = () => {
   const { czibs, loading, lastUpdated, refresh } = useCZIB();
   const [expanded, setExpanded] = useState(false);
 
-  const visibleCZIBs = expanded ? czibs : czibs.slice(0, 5);
-
-  // Fungsi untuk mengunduh PDF
-  const handleDownloadPDF = async (czibLink) => {
-    try {
-      // Ambil link PDF dari halaman CZIB yang bersangkutan
-      const pdfLink = czibLink.replace('czibs', 'czib-pdf') + '.pdf'; // Sesuaikan format URL PDF
-
-      // Cek apakah link PDF valid
-      const pdfResponse = await fetch(pdfLink);
-      if (pdfResponse.ok) {
-        const blob = await pdfResponse.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `CZIB_${czibLink.split('/').pop()}.pdf`;  // Menggunakan ID CZIB untuk nama file
-        a.click();
-      } else {
-        console.error('PDF not available for this CZIB');
-      }
-    } catch (error) {
-      console.error('Error fetching PDF:', error);
-    }
-  };
+  const visibleCZIBs = expanded ? czibs : czibs.slice(0, 6);
 
   return (
     <div className="flex flex-col bg-white/30 dark:bg-gray-700/30 backdrop-blur-md rounded-2xl shadow-md p-6 space-y-4">
@@ -41,7 +18,7 @@ const CZIBWidget = () => {
           {lastUpdated && <span>Last updated: {lastUpdated}</span>}
           <button
             onClick={refresh}
-            className="px-2 py-1 bg-red-100 dark:bg-red-800 hover:bg-red-200 dark:hover:bg-red-700 rounded text-xs font-semibold"
+            className="text-xs px-3 py-1 rounded bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 transition"
           >
             🔄 Refresh
           </button>
@@ -67,31 +44,20 @@ const CZIBWidget = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.2 }}
-                  className="border-b border-dashed border-red-300 dark:border-red-600 pb-2 flex justify-between items-center"
+                  className="border-b border-dashed border-red-300 dark:border-red-600 pb-2"
                 >
-                  <div>
-                    <div className="font-medium">{item.name}</div>
+                  <div className="flex flex-col gap-1">
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium hover:underline"
+                    >
+                      {item.title}
+                    </a>
                     <div className="text-xs italic">
-                      {item.country} — Valid until {item.valid_until_date}
+                      Published: {new Date(item.pubDate).toLocaleDateString()}
                     </div>
-                    {item.coordinates && (
-                      <div className="text-xs italic text-gray-500 dark:text-gray-400">
-                        Coordinates: {item.coordinates}
-                      </div>
-                    )}
-                    <div
-                      className={`text-xs font-medium ${item.status === 'Active' ? 'text-green-500' : 'text-gray-400'}`}
-                    >
-                      Status: {item.status}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleDownloadPDF(item.link)}
-                      className="text-xs text-blue-600 hover:text-blue-400"
-                    >
-                      📥 Download PDF
-                    </button>
                   </div>
                 </motion.li>
               ))}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 
 export default function TimeBetweenDates() {
   const [startTime, setStartTime] = useState("");
@@ -23,30 +24,55 @@ export default function TimeBetweenDates() {
   };
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow w-full">
-      <h2 className="text-xl font-bold mb-4">Time Between Dates</h2>
-      <p className="text-sm text-gray-500 mb-2">Calculate your DMI remaining day</p>
-      <div className="flex flex-col sm:flex-row items-center gap-2">
-        <input
-          type="datetime-local"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          className="p-2 border rounded flex-1 w-full"
-        />
-        <input
-          type="datetime-local"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          className="p-2 border rounded flex-1 w-full"
-        />
-        <button
-          onClick={calculateTimeDifference}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full sm:w-auto"
-        >
-          Calculate
-        </button>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="w-full bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-blue-100 dark:border-zinc-700 rounded-2xl shadow-md px-6 py-5 space-y-4"
+    >
+      <div>
+        <h2 className="text-lg md:text-xl font-bold text-blue-700 dark:text-blue-300">
+          ⏳ Time Between Dates
+        </h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          Calculate your DMI remaining day
+        </p>
       </div>
-      {result && <p className="mt-2 text-sm text-gray-700">{result}</p>}
-    </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">Start Date & Time</label>
+          <input
+            type="datetime-local"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            className="p-2 border rounded bg-white dark:bg-zinc-800 text-sm"
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">End Date & Time</label>
+          <input
+            type="datetime-local"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className="p-2 border rounded bg-white dark:bg-zinc-800 text-sm"
+          />
+        </div>
+        <div className="flex items-end">
+          <button
+            onClick={calculateTimeDifference}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-semibold transition"
+          >
+            🔍 Calculate
+          </button>
+        </div>
+      </div>
+
+      {result && (
+        <div className="text-sm text-gray-800 dark:text-gray-200">
+          Result: <span className="font-mono font-semibold">{result}</span>
+        </div>
+      )}
+    </motion.div>
   );
 }

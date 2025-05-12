@@ -15,8 +15,8 @@ export default function RACSnapshotWidget() {
 
   useEffect(() => {
     if (etd && pb) {
-      const [eh, em] = etd.split(":").map(Number);
-      const [ph, pm] = pb.split(":").map(Number);
+      const [eh, em] = etd.split(":" ).map(Number);
+      const [ph, pm] = pb.split(":" ).map(Number);
       const etdMins = eh * 60 + em;
       const pbMins = ph * 60 + pm;
       setDeviation(pbMins - etdMins);
@@ -44,20 +44,20 @@ export default function RACSnapshotWidget() {
   };
 
   return (
-    <Card className="w-full">
-      <CardContent className="p-4 space-y-4">
+    <Card className="w-full bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-blue-100 dark:border-zinc-700 shadow-md">
+      <CardContent className="p-5 space-y-5">
 
-        {/* ✅ Ringkasan Snapshot */}
-        <div className="text-sm bg-white/10 rounded-xl p-4 border border-white/10">
-          <h3 className="font-bold mb-2 text-blue-400 dark:text-blue-300">✈️ RAC Snapshot</h3>
-          <div className="flex justify-between">
+        {/* Snapshot Ringkas */}
+        <div className="text-sm rounded-xl p-4 border border-white/10">
+          <h3 className="font-bold mb-3 text-blue-600 dark:text-blue-300 text-base">✈️ RAC Snapshot</h3>
+          <div className="flex justify-between text-sm font-mono">
             <div>
               <div className="text-xs text-gray-500">Planned ETD</div>
-              <div className="font-mono">{etd || "—"}</div>
+              <div>{etd || "—"}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500">PB Actual</div>
-              <div className="font-mono">{pb || "—"}</div>
+              <div>{pb || "—"}</div>
             </div>
           </div>
           <div className={`mt-2 ${getColorClass(deviation)} text-sm`}>
@@ -65,8 +65,8 @@ export default function RACSnapshotWidget() {
           </div>
         </div>
 
-        {/* ✅ Form Input dengan Label */}
-        <div className="grid grid-cols-3 gap-4 text-center">
+        {/* Form Input */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <div className="text-xs mb-1 text-gray-500">Planned ETD</div>
             <TimePicker
@@ -102,10 +102,10 @@ export default function RACSnapshotWidget() {
           </div>
         </div>
 
-        {/* ✅ Tombol Navigasi */}
+        {/* Tombol Navigasi */}
         <button
           onClick={() => navigate("/rac-delay")}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-semibold transition"
         >
           🔍 See Detail
         </button>

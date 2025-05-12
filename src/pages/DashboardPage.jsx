@@ -1,73 +1,151 @@
-import { useState } from 'react';
-import Breadcrumb from '../components/ui/Breadcrumb';
-import WeatherSummary from '../components/ui/WeatherSummary';
-import ClockLocal from '../components/ui/ClockLocal';
-import ClockUTC from '../components/ui/ClockUTC';
-import RACSnapshotWidget from '../components/ui/RACSnapshotWidget';
-import NewsWidget from '../components/NewsWidget';
-import CompactWxAlert from '../components/ui/CompactWxAlert';
-import WindyWidget from '../components/ui/WindyWidget';
-import INASIAMWidget from '../components/ui/INASIAMWidget';
-import SectionTitle from '../components/ui/SectionTitle';
-import CZIBWidget from '../components/ui/CZIBWidget'; // ⬅️ Tambahkan ini
+import { useState } from "react";
+import { motion } from "framer-motion";
+import Breadcrumb from "../components/ui/Breadcrumb";
+import Header from "../components/ui/Header";
+import WeatherSummary from "../components/ui/WeatherSummary";
+import RACSnapshotWidget from "../components/ui/RACSnapshotWidget";
+import NewsWidget from "../components/NewsWidget";
+import CompactWxAlert from "../components/ui/CompactWxAlert";
+import WindyWidget from "../components/ui/WindyWidget";
+import INASIAMWidget from "../components/ui/INASIAMWidget";
+import SectionTitle from "../components/ui/SectionTitle";
+import CZIBWidget from "../components/ui/CZIBWidget";
 
 function DashboardPage() {
-  const [showWidgets, setShowWidgets] = useState(true);
+  const [infoVisible, setInfoVisible] = useState(true);
+  const [czibVisible, setCzibVisible] = useState(true);
+  const [rampVisible, setRampVisible] = useState(true);
+  const [summaryVisible, setSummaryVisible] = useState(true);
+  const [widgetVisible, setWidgetVisible] = useState(true);
 
   return (
-    <div className="p-6 space-y-10 max-w-7xl mx-auto">
-      {/* Breadcrumb */}
-      <Breadcrumb items={[{ label: 'Dashboard', to: '/' }]} />
+    <div className="px-4 md:px-6 py-6 space-y-10 max-w-7xl mx-auto">
+      <Breadcrumb items={[{ label: "Dashboard", to: "/" }]} />
+      <Header />
 
-      {/* News & Alerts */}
-      <div>
-        <SectionTitle icon="📰" title="Information & Alerts" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <NewsWidget />
-          <CompactWxAlert />
+      {/* Information & Alerts */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionTitle icon="📰" title="Information & Alerts" />
+          <motion.button
+            onClick={() => setInfoVisible(!infoVisible)}
+            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            whileTap={{ scale: 0.95 }}
+          >
+            <motion.span
+              animate={{ rotate: infoVisible ? 0 : -90 }}
+              transition={{ duration: 0.2 }}
+              className="inline-block"
+            >
+              ⮟
+            </motion.span>
+            {infoVisible ? "Hide" : "Show"}
+          </motion.button>
         </div>
-      </div>
+        {infoVisible && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <NewsWidget />
+            <CompactWxAlert />
+          </div>
+        )}
+      </section>
 
       {/* CZIB Alerts */}
-      <div>
-        <CZIBWidget />
-      </div>
-
-      {/* Clock & Ramp Tools */}
-      <div>
-        <SectionTitle icon="🕒" title="Time & Ramp Tools" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <ClockLocal />
-          <ClockUTC />
-          <RACSnapshotWidget />
-        </div>
-      </div>
-
-      {/* AI Weather Summary */}
-      <div>
-        <SectionTitle icon="🌦️" title="Weather Summary & AI Briefing" />
-        <WeatherSummary />
-      </div>
-
-      {/* Weather Widgets with Toggle */}
-      <div>
-        <SectionTitle icon="📡" title="Weather Widgets" />
-        <div className="flex justify-end mb-2">
-          <button
-            onClick={() => setShowWidgets(!showWidgets)}
-            className="text-sm px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionTitle icon="⚠️" title="Conflict Zone Alerts" />
+          <motion.button
+            onClick={() => setCzibVisible(!czibVisible)}
+            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            whileTap={{ scale: 0.95 }}
           >
-            {showWidgets ? '▾ Hide Widgets' : '▸ Show Widgets'}
-          </button>
+            <motion.span
+              animate={{ rotate: czibVisible ? 0 : -90 }}
+              transition={{ duration: 0.2 }}
+              className="inline-block"
+            >
+              ⮟
+            </motion.span>
+            {czibVisible ? "Hide" : "Show"}
+          </motion.button>
         </div>
+        {czibVisible && <CZIBWidget />}
+      </section>
 
-        {showWidgets && (
+      {/* Ramp Snapshot */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionTitle icon="🛫" title="Ramp Snapshot" />
+          <motion.button
+            onClick={() => setRampVisible(!rampVisible)}
+            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            whileTap={{ scale: 0.95 }}
+          >
+            <motion.span
+              animate={{ rotate: rampVisible ? 0 : -90 }}
+              transition={{ duration: 0.2 }}
+              className="inline-block"
+            >
+              ⮟
+            </motion.span>
+            {rampVisible ? "Hide" : "Show"}
+          </motion.button>
+        </div>
+        {rampVisible && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <RACSnapshotWidget />
+          </div>
+        )}
+      </section>
+
+      {/* Weather Summary */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionTitle icon="🌦️" title="Weather Summary & AI Briefing" />
+          <motion.button
+            onClick={() => setSummaryVisible(!summaryVisible)}
+            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            whileTap={{ scale: 0.95 }}
+          >
+            <motion.span
+              animate={{ rotate: summaryVisible ? 0 : -90 }}
+              transition={{ duration: 0.2 }}
+              className="inline-block"
+            >
+              ⮟
+            </motion.span>
+            {summaryVisible ? "Hide" : "Show"}
+          </motion.button>
+        </div>
+        {summaryVisible && <WeatherSummary />}
+      </section>
+
+      {/* Weather Widgets */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionTitle icon="📡" title="Weather Widgets" />
+          <motion.button
+            onClick={() => setWidgetVisible(!widgetVisible)}
+            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            whileTap={{ scale: 0.95 }}
+          >
+            <motion.span
+              animate={{ rotate: widgetVisible ? 0 : -90 }}
+              transition={{ duration: 0.2 }}
+              className="inline-block"
+            >
+              ⮟
+            </motion.span>
+            {widgetVisible ? "Hide" : "Show"}
+          </motion.button>
+        </div>
+        {widgetVisible && (
           <div className="space-y-6">
             <WindyWidget />
             <INASIAMWidget />
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

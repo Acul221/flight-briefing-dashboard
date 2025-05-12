@@ -11,17 +11,28 @@ function MainLayout({ children }) {
   const openSidebar = () => setCollapsed(false);
   const closeSidebar = () => setCollapsed(true);
 
-  // Gesture: swipe kanan untuk buka sidebar (mobile only)
+  // Swipe kanan → buka sidebar (hanya mobile)
   const bindGesture = useDrag(
     ({ movement: [mx], direction: [xDir], down }) => {
-      if (!down && xDir > 0 && mx > 50 && collapsed && window.innerWidth < 768) {
+      if (
+        !down &&
+        xDir > 0 &&
+        mx > 50 &&
+        collapsed &&
+        typeof window !== "undefined" &&
+        window.innerWidth < 768
+      ) {
         openSidebar();
       }
     },
-    { axis: "x" }
+    {
+      axis: "x",
+      pointer: { touch: true },
+      eventOptions: { passive: false },
+    }
   );
 
-  // Auto-collapse on screen resize (optional)
+  // Auto-collapse on screen resize
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) setCollapsed(true);
@@ -34,12 +45,13 @@ function MainLayout({ children }) {
   return (
     <div
       {...bindGesture()}
-      className="min-h-screen flex bg-gradient-to-br from-gray-100/80 via-white/60 to-gray-200/80 dark:from-gray-900/80 dark:via-gray-800/60 dark:to-gray-900/80 text-gray-900 dark:text-white transition-colors duration-300 touch-none"
+      className="min-h-screen flex bg-gradient-to-br from-gray-100/80 via-white/60 to-gray-200/80 dark:from-gray-900/80 dark:via-gray-800/60 dark:to-gray-900/80 text-gray-900 dark:text-white transition-colors duration-300 touch-none select-none"
+      style={{ touchAction: "pan-y" }} // 🧠 penting untuk swipe gesture
     >
-      {/* Sidebar with gesture + auto-close */}
+      {/* Sidebar */}
       <Sidebar collapsed={collapsed} onClose={closeSidebar} />
 
-      {/* Overlay blur when sidebar active (mobile only) */}
+      {/* Overlay Blur */}
       <AnimatePresence>
         {!collapsed && (
           <motion.div

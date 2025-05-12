@@ -1,6 +1,6 @@
-// src/components/ui/ClockUTC.jsx
 import { useState, useEffect } from "react";
-import { Clock as ClockIcon } from "lucide-react";
+import { Clock } from "lucide-react";
+import { motion } from "framer-motion";
 
 function ClockUTC() {
   const [utcTime, setUtcTime] = useState("");
@@ -22,11 +22,27 @@ function ClockUTC() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center bg-white/30 dark:bg-gray-700/30 backdrop-blur-md rounded-2xl shadow-md hover:shadow-2xl p-6 transition-all duration-500 transform hover:-translate-y-2 hover:scale-105 hover:ring-2 hover:ring-green-400 dark:hover:ring-yellow-400 text-center">
-      <ClockIcon size={40} className="text-green-600 dark:text-yellow-400 mb-2" />
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">UTC Time</h3>
-      <p className="font-mono text-lg text-gray-700 dark:text-gray-300 mt-2">{utcTime}</p>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.2 }}
+      className="flex items-center justify-between bg-white/20 dark:bg-gray-800/30 backdrop-blur-md rounded-xl px-4 py-3 shadow-sm border border-gray-200 dark:border-gray-700"
+    >
+      <div className="flex items-center gap-3">
+        <motion.div
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
+          <Clock size={22} className="text-green-600 dark:text-yellow-300" />
+        </motion.div>
+        <span className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200">
+          UTC Time
+        </span>
+      </div>
+      <p className="font-mono text-sm md:text-base text-gray-700 dark:text-gray-300">
+        {utcTime}
+      </p>
+    </motion.div>
   );
 }
 

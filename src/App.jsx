@@ -2,13 +2,18 @@ import { Routes, Route } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import DashboardPage from "./pages/DashboardPage";
 import SettingsPage from "./pages/SettingsPage";
-import DelayPage from "./pages/Delay"; // RAC Delay
-import TimeTools from "@/pages/TimeTools"; // Time Tools
+import DelayPage from "./pages/Delay";
+import TimeTools from "@/pages/TimeTools";
+import DisclaimerPage from "@/pages/DisclaimerPage"; // ⬅️ Tambahkan ini
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<MainLayout><DashboardPage /></MainLayout>} />
+      {/* Landing page tanpa layout */}
+      <Route path="/" element={<DisclaimerPage />} />
+
+      {/* Pages with layout */}
+      <Route path="/dashboard" element={<MainLayout><DashboardPage /></MainLayout>} />
       <Route path="/rac-delay" element={<MainLayout><DelayPage /></MainLayout>} />
       <Route path="/settings" element={<MainLayout><SettingsPage /></MainLayout>} />
       <Route path="/time-tools" element={<MainLayout><TimeTools /></MainLayout>} />

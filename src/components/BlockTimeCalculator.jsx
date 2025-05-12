@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 
 export default function BlockTimeCalculator() {
   const [blockOff, setBlockOff] = useState("");
@@ -9,7 +10,7 @@ export default function BlockTimeCalculator() {
 
   const parseTime = (str) => {
     if (!str) return null;
-    const [h, m] = str.split(":").map(Number);
+    const [h, m] = str.split(":" ).map(Number);
     const d = new Date();
     d.setHours(h, m, 0, 0);
     return d;
@@ -31,7 +32,7 @@ export default function BlockTimeCalculator() {
 
     while (current < end) {
       const hour = current.getHours();
-      if (hour < 6 || hour >= 18) nightMinutes++; // Night: 18:00–06:00
+      if (hour < 6 || hour >= 18) nightMinutes++;
       current.setMinutes(current.getMinutes() + 1);
     }
 
@@ -59,37 +60,58 @@ export default function BlockTimeCalculator() {
     const airSplit = splitDayNight(t2, t3);
 
     setResult(
-      `Block Time: ${format(blockTime)} (🌙 ${format(blockSplit.night)}, ☀️ ${format(blockSplit.day)})\n` +
-      `Air Time: ${format(airTime)} (🌙 ${format(airSplit.night)}, ☀️ ${format(airSplit.day)})`
+      `Block Time: ${format(blockTime)} (\uD83C\uDF19 ${format(blockSplit.night)}, \u2600\uFE0F ${format(blockSplit.day)})\n` +
+      `Air Time: ${format(airTime)} (\uD83C\uDF19 ${format(airSplit.night)}, \u2600\uFE0F ${format(airSplit.day)})`
     );
   };
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow w-full">
-      <h2 className="text-xl font-bold mb-4">Block Time Calculator</h2>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="w-full bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-blue-100 dark:border-zinc-700 rounded-2xl shadow-md px-6 py-5 space-y-4"
+    >
+      <div>
+        <h2 className="text-lg md:text-xl font-bold text-blue-700 dark:text-blue-300">
+          ⏱️ Block & Air Time Calculator
+        </h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          Input UTC time to calculate total & split day/night
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="flex items-center gap-2">
-          <label className="w-32">Block Off Time:</label>
-          <input type="time" value={blockOff} onChange={(e) => setBlockOff(e.target.value)} className="p-2 border rounded flex-1" />
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">Block Off</label>
+          <input type="time" value={blockOff} onChange={(e) => setBlockOff(e.target.value)} className="p-2 border rounded bg-white dark:bg-zinc-800 text-sm" />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="w-32">Airborne Time:</label>
-          <input type="time" value={airborne} onChange={(e) => setAirborne(e.target.value)} className="p-2 border rounded flex-1" />
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">Airborne</label>
+          <input type="time" value={airborne} onChange={(e) => setAirborne(e.target.value)} className="p-2 border rounded bg-white dark:bg-zinc-800 text-sm" />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="w-32">Landing Time:</label>
-          <input type="time" value={landing} onChange={(e) => setLanding(e.target.value)} className="p-2 border rounded flex-1" />
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">Landing</label>
+          <input type="time" value={landing} onChange={(e) => setLanding(e.target.value)} className="p-2 border rounded bg-white dark:bg-zinc-800 text-sm" />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="w-32">Block On Time:</label>
-          <input type="time" value={blockOn} onChange={(e) => setBlockOn(e.target.value)} className="p-2 border rounded flex-1" />
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">Block On</label>
+          <input type="time" value={blockOn} onChange={(e) => setBlockOn(e.target.value)} className="p-2 border rounded bg-white dark:bg-zinc-800 text-sm" />
         </div>
       </div>
-      <button onClick={calculate} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">
-        Calculate Block Time
+
+      <button
+        onClick={calculate}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-semibold transition"
+      >
+        🔍 Calculate Block Time
       </button>
-      <p className="mt-2 text-xs text-gray-500">Input your block and air time</p>
-      {result && <p className="mt-2 text-sm text-gray-800 whitespace-pre-line">{result}</p>}
-    </div>
+
+      {result && (
+        <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">
+          {result}
+        </div>
+      )}
+    </motion.div>
   );
 }

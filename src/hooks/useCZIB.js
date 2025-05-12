@@ -13,12 +13,26 @@ const useCZIB = () => {
       const res = await fetch('/.netlify/functions/fetch-czibs');
       const contentType = res.headers.get('content-type') || '';
 
-      if (!res.ok || !contentType.includes('application/json')) {
-        throw new Error(`Unexpected response: ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`❌ HTTP error ${res.status}`);
+      }
+
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        console.warn('⚠️ Unexpected response format:', text.slice(0, 100));
+        throw new Error('Response is not valid JSON');
       }
 
       const data = await res.json();
-      setCzibs(Array.isArray(data) ? data : []);
+      if (!Array.isArray(data)) {
+        console.warn('⚠️ CZIB data is not an array:', data);
+        setCzibs([]);
+      } else {
+        // Sort descending by pubDate
+        const sorted = data.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        setCzibs(sorted);
+      }
+
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (error) {
       console.error('❌ Failed to fetch CZIBs:', error);
