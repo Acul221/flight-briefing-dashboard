@@ -7,9 +7,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@use-gesture/react": "^10.3.1",
     "axios": "^1.9.0",
     "fast-xml-parser": "^5.2.1",
     "framer-motion": "^12.9.7",
+    "html2pdf.js": "^0.10.3",
     "lucide-react": "^0.503.0",
     "netlify-cli": "^20.1.1",
     "react": "^19.0.0",
