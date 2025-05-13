@@ -14,7 +14,6 @@ function Sidebar({ collapsed, onClose }) {
     { name: "Settings", path: "/settings", icon: <Settings size={18} /> },
   ];
 
-  // Auto close when click outside (on mobile)
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (sidebarRef.current && !sidebarRef.current.contains(e.target) && window.innerWidth < 768) {
@@ -30,19 +29,19 @@ function Sidebar({ collapsed, onClose }) {
       {!collapsed && (
         <motion.aside
           ref={sidebarRef}
-          initial={{ x: -100, opacity: 0 }}
+          initial={{ x: -80, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: -100, opacity: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.2}
           onDragEnd={(event, info) => {
-            if (info.offset.x < -50) {
+            if (info.offset.x < -50 || info.velocity.x < -200) {
               onClose();
             }
           }}
-          className="w-64 h-full bg-white/20 dark:bg-gray-800/20 backdrop-blur-md border-r border-gray-300 dark:border-gray-700 shadow-lg fixed md:static z-30 overflow-y-auto touch-none"
+          className="w-64 h-full fixed top-0 left-0 z-30 overflow-y-auto bg-white/30 dark:bg-gray-800/30 backdrop-blur-lg border-r border-gray-300 dark:border-gray-700 shadow-xl touch-manipulation"
         >
           <div className="p-4">
             <h2 className="text-xl font-bold tracking-tight text-gray-800 dark:text-white mb-6">
@@ -55,11 +54,16 @@ function Sidebar({ collapsed, onClose }) {
                   <Link
                     key={item.name}
                     to={item.path}
+                    onClick={() => {
+                      if (window.innerWidth >= 1024) {
+                        onClose();
+                      }
+                    }}
                     className={`flex items-center px-3 py-2 rounded-xl transition-all duration-200 group
                       ${
                         isActive
                           ? "bg-gray-200/60 dark:bg-gray-700/50 font-semibold text-blue-600 dark:text-blue-400"
-                          : "hover:bg-gray-100/40 dark:hover:bg-gray-700/20 text-gray-800 dark:text-gray-200"
+                          : "hover:bg-gray-100/50 dark:hover:bg-gray-700/30 text-gray-800 dark:text-gray-200"
                       }
                     `}
                   >

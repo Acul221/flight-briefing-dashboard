@@ -12,16 +12,40 @@ import SectionTitle from "../components/ui/SectionTitle";
 import CZIBWidget from "../components/ui/CZIBWidget";
 
 function DashboardPage() {
-  const [infoVisible, setInfoVisible] = useState(true);
-  const [czibVisible, setCzibVisible] = useState(true);
-  const [rampVisible, setRampVisible] = useState(true);
-  const [summaryVisible, setSummaryVisible] = useState(true);
-  const [widgetVisible, setWidgetVisible] = useState(true);
+  const [infoVisible, setInfoVisible] = useState(false);
+  const [czibVisible, setCzibVisible] = useState(false);
+  const [rampVisible, setRampVisible] = useState(false);
+  const [summaryVisible, setSummaryVisible] = useState(true); // default visible
+  const [widgetVisible, setWidgetVisible] = useState(false);
+
+  const toggleAll = (visible) => {
+    setInfoVisible(visible);
+    setCzibVisible(visible);
+    setRampVisible(visible);
+    setSummaryVisible(visible);
+    setWidgetVisible(visible);
+  };
 
   return (
     <div className="px-4 md:px-6 py-6 space-y-10 max-w-7xl mx-auto">
       <Breadcrumb items={[{ label: "Dashboard", to: "/" }]} />
       <Header />
+
+      {/* Global Toggle Buttons */}
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => toggleAll(true)}
+          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Show All
+        </button>
+        <button
+          onClick={() => toggleAll(false)}
+          className="px-3 py-1 text-xs bg-gray-300 text-gray-800 rounded hover:bg-gray-400 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+        >
+          Collapse All
+        </button>
+      </div>
 
       {/* Information & Alerts */}
       <section className="space-y-4">
@@ -29,25 +53,30 @@ function DashboardPage() {
           <SectionTitle icon="📰" title="Information & Alerts" />
           <motion.button
             onClick={() => setInfoVisible(!infoVisible)}
-            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
             whileTap={{ scale: 0.95 }}
+            title={infoVisible ? "Hide section" : "Show section"}
+            className="text-gray-500 hover:text-blue-600 dark:hover:text-yellow-300 transition text-xl"
           >
             <motion.span
               animate={{ rotate: infoVisible ? 0 : -90 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.25 }}
               className="inline-block"
             >
               ⮟
             </motion.span>
-            {infoVisible ? "Hide" : "Show"}
           </motion.button>
         </div>
-        {infoVisible && (
+        <motion.div
+          initial={false}
+          animate={{ height: infoVisible ? "auto" : 0, opacity: infoVisible ? 1 : 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden"
+        >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <NewsWidget />
             <CompactWxAlert />
           </div>
-        )}
+        </motion.div>
       </section>
 
       {/* CZIB Alerts */}
@@ -56,20 +85,27 @@ function DashboardPage() {
           <SectionTitle icon="⚠️" title="Conflict Zone Alerts" />
           <motion.button
             onClick={() => setCzibVisible(!czibVisible)}
-            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
             whileTap={{ scale: 0.95 }}
+            title={czibVisible ? "Hide section" : "Show section"}
+            className="text-gray-500 hover:text-blue-600 dark:hover:text-yellow-300 transition text-xl"
           >
             <motion.span
               animate={{ rotate: czibVisible ? 0 : -90 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.25 }}
               className="inline-block"
             >
               ⮟
             </motion.span>
-            {czibVisible ? "Hide" : "Show"}
           </motion.button>
         </div>
-        {czibVisible && <CZIBWidget />}
+        <motion.div
+          initial={false}
+          animate={{ height: czibVisible ? "auto" : 0, opacity: czibVisible ? 1 : 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden"
+        >
+          <CZIBWidget />
+        </motion.div>
       </section>
 
       {/* Ramp Snapshot */}
@@ -78,24 +114,29 @@ function DashboardPage() {
           <SectionTitle icon="🛫" title="Ramp Snapshot" />
           <motion.button
             onClick={() => setRampVisible(!rampVisible)}
-            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
             whileTap={{ scale: 0.95 }}
+            title={rampVisible ? "Hide section" : "Show section"}
+            className="text-gray-500 hover:text-blue-600 dark:hover:text-yellow-300 transition text-xl"
           >
             <motion.span
               animate={{ rotate: rampVisible ? 0 : -90 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.25 }}
               className="inline-block"
             >
               ⮟
             </motion.span>
-            {rampVisible ? "Hide" : "Show"}
           </motion.button>
         </div>
-        {rampVisible && (
+        <motion.div
+          initial={false}
+          animate={{ height: rampVisible ? "auto" : 0, opacity: rampVisible ? 1 : 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden"
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <RACSnapshotWidget />
           </div>
-        )}
+        </motion.div>
       </section>
 
       {/* Weather Summary */}
@@ -104,20 +145,27 @@ function DashboardPage() {
           <SectionTitle icon="🌦️" title="Weather Summary & AI Briefing" />
           <motion.button
             onClick={() => setSummaryVisible(!summaryVisible)}
-            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
             whileTap={{ scale: 0.95 }}
+            title={summaryVisible ? "Hide section" : "Show section"}
+            className="text-gray-500 hover:text-blue-600 dark:hover:text-yellow-300 transition text-xl"
           >
             <motion.span
               animate={{ rotate: summaryVisible ? 0 : -90 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.25 }}
               className="inline-block"
             >
               ⮟
             </motion.span>
-            {summaryVisible ? "Hide" : "Show"}
           </motion.button>
         </div>
-        {summaryVisible && <WeatherSummary />}
+        <motion.div
+          initial={false}
+          animate={{ height: summaryVisible ? "auto" : 0, opacity: summaryVisible ? 1 : 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden"
+        >
+          <WeatherSummary />
+        </motion.div>
       </section>
 
       {/* Weather Widgets */}
@@ -126,25 +174,30 @@ function DashboardPage() {
           <SectionTitle icon="📡" title="Weather Widgets" />
           <motion.button
             onClick={() => setWidgetVisible(!widgetVisible)}
-            className="flex items-center gap-1 text-sm px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 transition"
             whileTap={{ scale: 0.95 }}
+            title={widgetVisible ? "Hide section" : "Show section"}
+            className="text-gray-500 hover:text-blue-600 dark:hover:text-yellow-300 transition text-xl"
           >
             <motion.span
               animate={{ rotate: widgetVisible ? 0 : -90 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.25 }}
               className="inline-block"
             >
               ⮟
             </motion.span>
-            {widgetVisible ? "Hide" : "Show"}
           </motion.button>
         </div>
-        {widgetVisible && (
+        <motion.div
+          initial={false}
+          animate={{ height: widgetVisible ? "auto" : 0, opacity: widgetVisible ? 1 : 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden"
+        >
           <div className="space-y-6">
             <WindyWidget />
             <INASIAMWidget />
           </div>
-        )}
+        </motion.div>
       </section>
     </div>
   );

@@ -19,8 +19,7 @@ function Header() {
       </p>
 
       <div className="mt-4 space-y-1 text-sm md:text-base font-mono">
-        <ClockLocal />
-        <ClockUTC />
+        
       </div>
     </motion.div>
   );
