@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, Settings, ClipboardList, Clock } from "lucide-react";
+import { Home, Settings, ClipboardList, Clock, Calculator } from "lucide-react"; // ⬅️ Tambah Calculator
 
 function Sidebar({ collapsed, onClose }) {
   const location = useLocation();
@@ -11,6 +11,7 @@ function Sidebar({ collapsed, onClose }) {
     { name: "Dashboard", path: "/", icon: <Home size={18} /> },
     { name: "RAC Delay", path: "/rac-delay", icon: <ClipboardList size={18} /> },
     { name: "Time Tools", path: "/time-tools", icon: <Clock size={18} /> },
+    { name: "Flight Computer", path: "/flight-computer", icon: <Calculator size={18} /> }, // ⬅️ Tambah baris ini
     { name: "Settings", path: "/settings", icon: <Settings size={18} /> },
   ];
 

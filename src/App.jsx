@@ -4,7 +4,8 @@ import DashboardPage from "./pages/DashboardPage";
 import SettingsPage from "./pages/SettingsPage";
 import DelayPage from "./pages/Delay";
 import TimeTools from "@/pages/TimeTools";
-import DisclaimerPage from "@/pages/DisclaimerPage"; // ⬅️ Tambahkan ini
+import DisclaimerPage from "@/pages/DisclaimerPage";
+import FlightComputerPage from "@/modules/flight-computer"; // ⬅️ Import baru
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       <Route path="/rac-delay" element={<MainLayout><DelayPage /></MainLayout>} />
       <Route path="/settings" element={<MainLayout><SettingsPage /></MainLayout>} />
       <Route path="/time-tools" element={<MainLayout><TimeTools /></MainLayout>} />
+      <Route path="/flight-computer" element={<MainLayout><FlightComputerPage /></MainLayout>} /> {/* ⬅️ Route baru */}
     </Routes>
   );
 }

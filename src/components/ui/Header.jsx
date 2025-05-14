@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
-import ClockUTC from "./ClockUTC";
-import ClockLocal from "./ClockLocal";
+import FlightTipSlideshow from "@/components/ui/FlightTipSlideshow";
 
 function Header() {
   return (
@@ -18,9 +17,7 @@ function Header() {
         Proper Preparation Prevents Poor Performance
       </p>
 
-      <div className="mt-4 space-y-1 text-sm md:text-base font-mono">
-        
-      </div>
+      <FlightTipSlideshow />
     </motion.div>
   );
 }
