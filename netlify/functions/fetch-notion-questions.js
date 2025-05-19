@@ -15,8 +15,8 @@ export async function handler() {
     const questions = response.results.map((page) => {
       const props = page.properties;
       return {
-        id: page.id,
-        question: props.Name?.title?.[0]?.plain_text || "(No question)"
+        id: props.ID?.rich_text?.[0]?.plain_text || "(No ID)",
+        question: props.Question?.rich_text?.[0]?.plain_text || "(No Question)"
       };
     });
 
@@ -25,6 +25,7 @@ export async function handler() {
       body: JSON.stringify(questions, null, 2)
     };
   } catch (error) {
+    console.error("Fetch Error:", error.message);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: error.message })
