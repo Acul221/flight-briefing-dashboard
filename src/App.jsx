@@ -6,10 +6,15 @@ import DelayPage from "./pages/Delay";
 import TimeTools from "@/pages/TimeTools";
 import DisclaimerPage from "@/pages/DisclaimerPage";
 import FlightComputerPage from "@/modules/flight-computer"; // ⬅️ Import baru
+import React from "react";
+import QuizPage from "./pages/QuizPage";
 
 function App() {
   return (
     <Routes>
+      {/* Tambahkan route quiz di sini */}
+      <Route path="/quiz" element={<MainLayout><QuizPage /></MainLayout>} />
+      
       {/* Landing page tanpa layout */}
       <Route path="/" element={<DisclaimerPage />} />
 
