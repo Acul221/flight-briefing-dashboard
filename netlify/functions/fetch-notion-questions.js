@@ -1,5 +1,3 @@
-// netlify/functions/fetch-notion-questions.js
-
 import { Client } from "@notionhq/client";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -15,7 +13,7 @@ export async function handler() {
     const questions = response.results.map((page) => {
       const props = page.properties;
       return {
-        id: props.ID?.rich_text?.[0]?.plain_text || "(No ID)",
+        id: props.ID?.title?.[0]?.plain_text || "(No ID)", // ✅ updated here!
         question: props.Question?.rich_text?.[0]?.plain_text || "(No Question)"
       };
     });
