@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Flightbriefing Dashboard',
         short_name: 'Skydeck',
@@ -39,6 +40,33 @@ export default defineConfig({
             sizes: "360x640",
             type: "image/png",
             form_factor: "narrow"
+          }
+        ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,ico,svg}'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.destination === 'document',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages',
+            },
+          },
+          {
+            urlPattern: ({ request }) =>
+              request.destination === 'script' || request.destination === 'style',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'assets',
+            },
+          },
+          {
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'images',
+            },
           }
         ]
       }
