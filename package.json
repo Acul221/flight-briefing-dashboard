@@ -1,5 +1,6 @@
 {
   "name": "flightbriefing-dashboard",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -29,4 +30,5 @@
     "vite": "^6.3.1",
     "vite-plugin-pwa": "^1.0.0"
   }
+  
 }

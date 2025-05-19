@@ -1,10 +1,10 @@
-// /netlify/functions/fetch-notion-questions.js
+// netlify/functions/fetch-notion-questions.js
 
-const { Client } = require('@notionhq/client');
+import { Client } from '@notionhq/client';
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-exports.handler = async function () {
+export async function handler() {
   try {
     const databaseId = process.env.NOTION_DATABASE_ID;
 
@@ -16,8 +16,7 @@ exports.handler = async function () {
       const props = page.properties;
       return {
         id: page.id,
-        question: props.Name?.title?.[0]?.plain_text || "(No question text)",
-        // Tambahkan mapping lain jika field seperti Choices, Explanation, dll sudah tersedia
+        question: props.Name?.title?.[0]?.plain_text || "(No question)"
       };
     });
 
@@ -26,10 +25,9 @@ exports.handler = async function () {
       body: JSON.stringify(questions, null, 2)
     };
   } catch (error) {
-    console.error("Notion Fetch Error:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: error.message })
     };
   }
-};
+}
