@@ -8,13 +8,18 @@ import DisclaimerPage from "@/pages/DisclaimerPage";
 import FlightComputerPage from "@/modules/flight-computer"; // ⬅️ Import baru
 import React from "react";
 import QuizPage from "./pages/QuizPage";
+import QuizSelector from "./pages/QuizSelector";
+import SubjectSelector from "./pages/SubjectSelector";
+
 
 function App() {
   return (
     <Routes>
       {/* Tambahkan route quiz di sini */}
-      <Route path="/quiz" element={<MainLayout><QuizPage /></MainLayout>} />
-      
+      <Route path="/quiz" element={<MainLayout><QuizSelector /></MainLayout>} />
+      <Route path="/quiz/:aircraft" element={<MainLayout><SubjectSelector /></MainLayout>} />
+      <Route path="/quiz/:aircraft/:subject" element={<MainLayout><QuizPage /></MainLayout>} />
+
       {/* Landing page tanpa layout */}
       <Route path="/" element={<DisclaimerPage />} />
 
