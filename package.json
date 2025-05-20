@@ -11,6 +11,7 @@
     "@notionhq/client": "^3.0.1",
     "@use-gesture/react": "^10.3.1",
     "axios": "^1.9.0",
+    "dotenv": "^16.5.0",
     "fast-xml-parser": "^5.2.1",
     "framer-motion": "^12.9.7",
     "html2pdf.js": "^0.10.3",
@@ -30,5 +31,4 @@
     "vite": "^6.3.1",
     "vite-plugin-pwa": "^1.0.0"
   }
-  
 }

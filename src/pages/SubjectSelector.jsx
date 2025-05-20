@@ -65,6 +65,14 @@ function SubjectSelector() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-6">
       <h1 className="text-2xl font-bold mb-6 capitalize">{aircraft} Subjects</h1>
+
+      <button
+        onClick={() => navigate(`/quiz/${aircraft}/all`)}
+        className="mb-6 w-full max-w-md py-4 px-6 rounded-xl shadow-md bg-blue-600 text-white hover:bg-blue-700 transition font-semibold"
+      >
+        🔀 All Topics Random Mode
+      </button>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-md">
         {subjects.map((subj) => (
           <button

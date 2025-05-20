@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 
 function QuizPage() {
   const { aircraft, subject } = useParams();
+
   const [questions, setQuestions] = useState([]);
   const [filteredQuestions, setFilteredQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -20,17 +21,20 @@ function QuizPage() {
     fetch("/.netlify/functions/fetch-notion-questions")
       .then((res) => res.json())
       .then((data) => {
-        const relevant = data.filter(
-          (q) =>
-            q.tags.includes(aircraft.toUpperCase()) &&
-            q.tags.some((t) => t.toLowerCase().includes(subject))
-        );
-        setQuestions(relevant);
-        setFilteredQuestions(relevant);
+        const relevant = data.filter((q) => {
+          const hasAircraft = q.tags.includes(aircraft.toUpperCase());
+          const matchSubject = subject === "all" || q.tags.some((t) => t.toLowerCase().includes(subject));
+          return hasAircraft && matchSubject;
+        });
+
+        const shuffled = subject === "all" ? [...relevant].sort(() => Math.random() - 0.5) : relevant;
+
+        setQuestions(shuffled);
+        setFilteredQuestions(shuffled);
 
         const tags = new Set();
         const sources = new Set();
-        relevant.forEach(q => {
+        shuffled.forEach(q => {
           q.tags.forEach(t => tags.add(t));
           if (q.source) sources.add(q.source);
         });
@@ -86,99 +90,127 @@ function QuizPage() {
 
   const q = filteredQuestions[currentIndex];
 
+  const correctAnswers = filteredQuestions.filter((q, i) => {
+    const selectedIndex = answers[i];
+    return q.choices[selectedIndex]?.isCorrect;
+  });
+
+  const percentage = Math.round((correctAnswers.length / filteredQuestions.length) * 100);
+  const resultColor = percentage >= 80 ? "text-green-600" : percentage >= 50 ? "text-yellow-500" : "text-red-500";
+
   return (
     <div className="max-w-3xl mx-auto p-4 text-gray-900 dark:text-white">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">
-          {aircraft.toUpperCase()} / {subject.toUpperCase()} — Quiz
-        </h2>
-        <div className="flex items-center gap-2">
-          <LevelBadge level={q.level.toLowerCase()} />
-          {q.source && <span className="text-xs text-gray-500 italic">{q.source}</span>}
-        </div>
-      </div>
+      <button
+        onClick={() => (window.location.href = `/quiz/${aircraft}`)}
+        className="mb-4 inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline hover:text-blue-800 dark:hover:text-blue-300"
+      >
+        ← Back to Subjects
+      </button>
 
-      <div className="flex flex-wrap gap-4 mb-6 items-center">
-        <select
-          value={levelFilter}
-          onChange={(e) => setLevelFilter(e.target.value)}
-          className="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
-        >
-          <option value="All">All Levels</option>
-          <option value="Easy">Easy</option>
-          <option value="Medium">Medium</option>
-          <option value="Hard">Hard</option>
-        </select>
+      {isReview ? (
+        <>
+          <div className="mb-8 border p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
+            <h2 className="text-xl font-bold mb-2">Grade Report</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {aircraft.toUpperCase()} - {subject.toUpperCase()} | Exam Summary
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Correct {correctAnswers.length} of {filteredQuestions.length} questions
+            </p>
+            <p className={`text-lg font-semibold ${resultColor}`}>{percentage}% {percentage >= 80 ? 'Passed' : 'Failed'}</p>
+          </div>
 
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          className="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
-        >
-          {allSources.map((src) => (
-            <option key={src} value={src}>{src}</option>
-          ))}
-        </select>
-
-        <div className="flex gap-2 overflow-x-auto">
-          {allTags.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
-              className={`px-3 py-1 rounded-full border text-sm transition ${
-                tagFilter === tag
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-gray-100 dark:bg-gray-800 border-gray-400 dark:border-gray-600"
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <h3 className="text-lg font-semibold mb-2">
-        {currentIndex + 1}. {q.question}
-      </h3>
-
-      <div className="space-y-2">
-        {q.choices.map((choice, i) => {
-          const isSelected = selected === i;
-          const isCorrect = choice.isCorrect;
-          const borderColor =
-            !showExplanation
-              ? "border-gray-300"
-              : isCorrect
-              ? "border-green-500 bg-green-100"
-              : isSelected
-              ? "border-red-500 bg-red-100"
-              : "border-gray-200";
-
-          return (
-            <button
-              key={i}
-              onClick={() => handleAnswer(i)}
-              disabled={showExplanation}
-              className={`w-full text-left p-3 border ${borderColor} rounded shadow-sm hover:shadow-md transition`}
-            >
-              <strong>{String.fromCharCode(65 + i)}.</strong> {choice.text}
-              {showExplanation && isSelected && (
-                <p className="mt-1 text-sm text-gray-600 italic">
-                  {choice.explanation}
+          {filteredQuestions.map((question, idx) => {
+            const selectedIdx = answers[idx];
+            const nomor = `N°${String(idx + 1).padStart(3, '0')}`;
+            return (
+              <div key={idx} className="mb-6 border p-4 rounded-lg bg-white dark:bg-gray-800">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{nomor} — ID: {question.id}</p>
+                <p className="font-semibold mb-2">
+                  Question {idx + 1} of {filteredQuestions.length}: {question.question}
                 </p>
-              )}
-            </button>
-          );
-        })}
-      </div>
+                {question.choices.map((choice, i) => {
+                  const isCorrect = choice.isCorrect;
+                  const isSelected = selectedIdx === i;
+                  const base = "px-3 py-2 rounded-md border mb-1";
+                  const style = isCorrect
+                    ? "border-green-500 bg-green-100 dark:bg-green-800"
+                    : isSelected
+                    ? "border-red-500 bg-red-100 dark:bg-red-800"
+                    : "border-gray-300 dark:border-gray-700";
 
-      {showExplanation && (
-        <button
-          onClick={handleNext}
-          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          {currentIndex < filteredQuestions.length - 1 ? "Next Question" : "Finish & Review"}
-        </button>
+                  return (
+                    <div key={i} className={`${base} ${style}`}>
+                      <strong>{String.fromCharCode(65 + i)}.</strong> {choice.text}
+                      <p className="text-xs italic mt-1 text-gray-600 dark:text-gray-300">
+                        {choice.explanation}
+                      </p>
+                      {isSelected && <span className="ml-2 italic text-sm">(Your Answer)</span>}
+                      {isCorrect && <span className="ml-2 italic text-sm">(Correct)</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </>
+      ) : (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">
+              {aircraft.toUpperCase()} / {subject.toUpperCase()} — Quiz
+            </h2>
+            <div className="flex items-center gap-2">
+              <LevelBadge level={q.level.toLowerCase()} />
+              {q.source && <span className="text-xs text-gray-500 italic">{q.source}</span>}
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">N°{String(currentIndex + 1).padStart(3, '0')} — ID: {q.id}</p>
+          <h3 className="text-lg font-semibold mb-2">
+            Question {currentIndex + 1} of {filteredQuestions.length}: {q.question}
+          </h3>
+
+          <div className="space-y-2">
+            {q.choices.map((choice, i) => {
+              const isCorrect = choice.isCorrect;
+              const isSelected = selected === i;
+              const borderColor =
+                !showExplanation
+                  ? "border-gray-300"
+                  : isCorrect
+                  ? "border-green-500 bg-green-100"
+                  : isSelected
+                  ? "border-red-500 bg-red-100"
+                  : "border-gray-200";
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleAnswer(i)}
+                  disabled={showExplanation}
+                  className={`w-full text-left p-3 border ${borderColor} rounded shadow-sm hover:shadow-md transition`}
+                >
+                  <strong>{String.fromCharCode(65 + i)}.</strong> {choice.text}
+                  {showExplanation && (
+                    <p className="mt-1 text-sm text-gray-600 italic">
+                      {choice.explanation}
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {showExplanation && (
+            <button
+              onClick={handleNext}
+              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              {currentIndex < filteredQuestions.length - 1 ? "Next Question" : "Finish & Review"}
+            </button>
+          )}
+        </>
       )}
     </div>
   );

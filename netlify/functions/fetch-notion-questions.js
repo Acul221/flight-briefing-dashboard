@@ -1,8 +1,8 @@
-const { Client } = require("@notionhq/client");
+import { Client } from "@notionhq/client";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-exports.handler = async function (event, context) {
+export async function handler() {
   try {
     const databaseId = process.env.NOTION_DATABASE_ID;
 
@@ -13,19 +13,20 @@ exports.handler = async function (event, context) {
     const questions = response.results.map((page) => {
       const props = page.properties;
 
+      const getRichText = (field) =>
+        props[field]?.rich_text?.map((t) => t.plain_text).join(" ") || "";
+
       return {
-        id: props.ID?.title?.[0]?.plain_text || "(No ID)",
-        question: props.Question?.rich_text?.[0]?.plain_text || "(No Question)",
+        id: props.ID?.title?.map((t) => t.plain_text).join(" ") || "(No ID)",
+        question: getRichText("Question") || "(No Question)",
         choices: ["A", "B", "C", "D"].map((letter) => ({
-          text: props[`Choice ${letter}`]?.rich_text?.[0]?.plain_text || "",
+          text: getRichText(`Choice ${letter}`),
           isCorrect: props[`isCorrect ${letter}`]?.checkbox || false,
-          explanation: props[`Explanation ${letter}`]?.rich_text?.[0]?.plain_text || ""
+          explanation: getRichText(`Explanation ${letter}`)
         })),
-        tags: props.Tags?.rich_text?.[0]?.plain_text
-          ?.split(",")
-          ?.map((tag) => tag.trim()) || [],
-        level: props.Level?.rich_text?.[0]?.plain_text || "",
-        source: props.Source?.rich_text?.[0]?.plain_text || ""
+        tags: props.Tags?.multi_select?.map((tag) => tag.name.trim()) || [],
+        level: props.Level?.select?.name || "",
+        source: getRichText("Source") || ""
       };
     });
 
@@ -40,4 +41,4 @@ exports.handler = async function (event, context) {
       body: JSON.stringify({ error: error.message })
     };
   }
-};
+}
