@@ -1,8 +1,8 @@
-import { Client } from "@notionhq/client";
+const { Client } = require("@notionhq/client");
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-export async function handler() {
+exports.handler = async function (event, context) {
   try {
     const databaseId = process.env.NOTION_DATABASE_ID;
 
@@ -40,4 +40,4 @@ export async function handler() {
       body: JSON.stringify({ error: error.message })
     };
   }
-}
+};
