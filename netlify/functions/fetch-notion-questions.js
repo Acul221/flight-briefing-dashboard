@@ -2,13 +2,29 @@ import { Client } from "@notionhq/client";
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
-export async function handler() {
+export async function handler(event) {
   try {
-    const databaseId = process.env.NOTION_DATABASE_ID;
+    const path = event.queryStringParameters?.aircraft?.toLowerCase() || "a320";
 
-    const response = await notion.databases.query({
-      database_id: databaseId
-    });
+    const databaseMap = {
+      a320: process.env.NOTION_DB_A320,
+      a330: process.env.NOTION_DB_A330,
+      b737: process.env.NOTION_DB_B737,
+      weather: process.env.NOTION_DB_WEATHER,
+      crm: process.env.NOTION_DB_CRM,
+      icao: process.env.NOTION_DB_ICAO,
+    };
+
+    const databaseId = databaseMap[path];
+
+    if (!databaseId) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Invalid aircraft path or missing database ID." })
+      };
+    }
+
+    const response = await notion.databases.query({ database_id: databaseId });
 
     const questions = response.results.map((page) => {
       const props = page.properties;

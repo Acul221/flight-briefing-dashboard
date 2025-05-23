@@ -7,7 +7,7 @@ import {
   ClipboardList,
   Clock,
   Calculator,
-  Gamepad // ✅ Tambahkan icon Gamepad
+  Gamepad,PenSquare // ✅ Tambahkan icon Gamepad
 } from "lucide-react";
 import React from "react";
 
@@ -21,6 +21,7 @@ function Sidebar({ collapsed, onClose }) {
     { name: "RAC Delay", path: "/rac-delay", icon: <ClipboardList size={18} /> },
     { name: "Time Tools", path: "/time-tools", icon: <Clock size={18} /> },
     { name: "Flight Computer", path: "/flight-computer", icon: <Calculator size={18} /> },
+    { name: "Quiz Editor ICAO", path: "/quiz-editor/icao", icon: <PenSquare size={18} /> },
     { name: "Settings", path: "/settings", icon: <Settings size={18} /> },
   ];
 

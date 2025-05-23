@@ -18,13 +18,12 @@ function QuizPage() {
   const [isReview, setIsReview] = useState(false);
 
   useEffect(() => {
-    fetch("/.netlify/functions/fetch-notion-questions")
+    fetch(`/.netlify/functions/fetch-notion-questions?aircraft=${aircraft}`)
       .then((res) => res.json())
       .then((data) => {
         const relevant = data.filter((q) => {
-          const hasAircraft = q.tags.includes(aircraft.toUpperCase());
           const matchSubject = subject === "all" || q.tags.some((t) => t.toLowerCase().includes(subject));
-          return hasAircraft && matchSubject;
+          return matchSubject;
         });
 
         const shuffled = subject === "all" ? [...relevant].sort(() => Math.random() - 0.5) : relevant;
