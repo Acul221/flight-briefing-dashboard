@@ -10,7 +10,7 @@ import React from "react";
 import QuizPage from "./pages/QuizPage";
 import QuizSelector from "./pages/QuizSelector";
 import SubjectSelector from "./pages/SubjectSelector";
-import QuizEditorICAO from "./pages/QuizEditorICAO";
+import QuizEditorMaster from "./pages/QuizEditorMaster";
 
 
 function App() {
@@ -20,7 +20,7 @@ function App() {
       <Route path="/quiz" element={<MainLayout><QuizSelector /></MainLayout>} />
       <Route path="/quiz/:aircraft" element={<MainLayout><SubjectSelector /></MainLayout>} />
       <Route path="/quiz/:aircraft/:subject" element={<MainLayout><QuizPage /></MainLayout>} />
-      <Route path="/quiz-editor/icao" element={<MainLayout><QuizEditorICAO /></MainLayout>} />
+      <Route path="/quiz-editor/" element={<MainLayout><QuizEditorMaster /></MainLayout>} />
 
       {/* Landing page tanpa layout */}
       <Route path="/" element={<DisclaimerPage />} />

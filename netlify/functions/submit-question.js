@@ -1,14 +1,7 @@
 const { Client } = require("@notionhq/client");
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
-
-const databaseMap = {
-  icao: process.env.NOTION_DB_ICAO,
-  a320: process.env.NOTION_DB_A320,
-  a330: process.env.NOTION_DB_A330,
-  crm: process.env.NOTION_DB_CRM,
-  weather: process.env.NOTION_DB_WEATHER
-};
+const databaseId = process.env.NOTION_DB_MASTER;
 
 exports.handler = async function (event) {
   if (event.httpMethod !== "POST") {
@@ -20,14 +13,6 @@ exports.handler = async function (event) {
 
   try {
     const body = JSON.parse(event.body);
-    const databaseId = databaseMap[body.category || "icao"];
-
-    if (!databaseId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Invalid category or missing database ID" })
-      };
-    }
 
     const response = await notion.pages.create({
       parent: { database_id: databaseId },
@@ -66,6 +51,9 @@ exports.handler = async function (event) {
               }
             }
           ]
+        },
+        Category: {
+          select: { name: body.category || "general" }
         },
         ...["A", "B", "C", "D"].reduce((acc, letter, i) => {
           acc[`Choice ${letter}`] = {

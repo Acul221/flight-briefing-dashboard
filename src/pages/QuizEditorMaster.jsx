@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-export default function QuizEditorICAO() {
+export default function QuizEditorMaster() {
   const [formData, setFormData] = useState({
     id: "",
     question: "",
@@ -8,8 +8,9 @@ export default function QuizEditorICAO() {
     correctIndex: null,
     explanations: ["", "", "", ""],
     tags: "",
-    level: "Easy",
-    source: ""
+    level: "",
+    source: "",
+    category: ""
   });
 
   const [showPreview, setShowPreview] = useState(false);
@@ -23,8 +24,9 @@ export default function QuizEditorICAO() {
       correctIndex: null,
       explanations: ["", "", "", ""],
       tags: "",
-      level: "Easy",
-      source: ""
+      level: "",
+      source: "",
+      category: ""
     });
     setShowPreview(false);
     setShowSuccess(false);
@@ -57,7 +59,7 @@ export default function QuizEditorICAO() {
     const response = await fetch("/.netlify/functions/submit-question", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...formData, category: "icao" })
+      body: JSON.stringify(formData)
     });
 
     if (response.ok) {
@@ -71,7 +73,7 @@ export default function QuizEditorICAO() {
     <div className="max-w-xl mx-auto p-4 space-y-6 bg-white dark:bg-gray-900 text-gray-800 dark:text-white">
       {!showSuccess ? (
         <form onSubmit={(e) => { e.preventDefault(); setShowPreview(true); }} className="space-y-4">
-          <h2 className="text-xl font-bold">Add ICAO Quiz Question</h2>
+          <h2 className="text-xl font-bold">Add Quiz Question to Master DB</h2>
 
           <input type="text" placeholder="ID" value={formData.id} onChange={(e) => handleChange("id", e.target.value)} className="w-full p-2 border rounded" required />
           <textarea placeholder="Question" value={formData.question} onChange={(e) => handleChange("question", e.target.value)} className="w-full p-2 border rounded" required />
@@ -92,6 +94,15 @@ export default function QuizEditorICAO() {
             <option value="Easy">Easy</option>
             <option value="Medium">Medium</option>
             <option value="Hard">Hard</option>
+          </select>
+
+          <select value={formData.category} onChange={(e) => handleChange("category", e.target.value)} className="w-full p-2 border rounded">
+            <option value="icao">ICAO</option>
+            <option value="a320">A320</option>
+            <option value="a330">A330</option>
+            <option value="weather">Weather</option>
+            <option value="crm">CRM</option>
+            <option value="procedure">Procedure</option>
           </select>
 
           <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Preview</button>
@@ -118,8 +129,9 @@ export default function QuizEditorICAO() {
           <p><strong>Tags:</strong> {formData.tags}</p>
           <p><strong>Level:</strong> {formData.level}</p>
           <p><strong>Source:</strong> {formData.source}</p>
+          <p><strong>Category:</strong> {formData.category}</p>
 
-          <button onClick={handleSubmit} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Submit to ICAO</button>
+          <button onClick={handleSubmit} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Submit to Master DB</button>
         </div>
       )}
     </div>

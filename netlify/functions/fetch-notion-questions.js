@@ -1,48 +1,36 @@
-import { Client } from "@notionhq/client";
+const { Client } = require("@notionhq/client");
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const databaseId = process.env.NOTION_DB_MASTER;
 
-export async function handler(event) {
+exports.handler = async function (event) {
   try {
-    const path = event.queryStringParameters?.aircraft?.toLowerCase() || "a320";
+    const params = new URLSearchParams(event.rawUrl.split("?")[1]);
+    const category = params.get("aircraft") || "a320"; // default fallback
 
-    const databaseMap = {
-      a320: process.env.NOTION_DB_A320,
-      a330: process.env.NOTION_DB_A330,
-      b737: process.env.NOTION_DB_B737,
-      weather: process.env.NOTION_DB_WEATHER,
-      crm: process.env.NOTION_DB_CRM,
-      icao: process.env.NOTION_DB_ICAO,
-    };
-
-    const databaseId = databaseMap[path];
-
-    if (!databaseId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Invalid aircraft path or missing database ID." })
-      };
-    }
-
-    const response = await notion.databases.query({ database_id: databaseId });
+    const response = await notion.databases.query({
+      database_id: databaseId,
+      filter: {
+        property: "Category",
+        select: { equals: category }
+      }
+    });
 
     const questions = response.results.map((page) => {
       const props = page.properties;
 
-      const getRichText = (field) =>
-        props[field]?.rich_text?.map((t) => t.plain_text).join(" ") || "";
-
       return {
-        id: props.ID?.title?.map((t) => t.plain_text).join(" ") || "(No ID)",
-        question: getRichText("Question") || "(No Question)",
+        id: props.ID?.title?.[0]?.plain_text || "(No ID)",
+        question: props.Question?.rich_text?.[0]?.plain_text || "(No Question)",
         choices: ["A", "B", "C", "D"].map((letter) => ({
-          text: getRichText(`Choice ${letter}`),
+          text: props[`Choice ${letter}`]?.rich_text?.[0]?.plain_text || "",
           isCorrect: props[`isCorrect ${letter}`]?.checkbox || false,
-          explanation: getRichText(`Explanation ${letter}`)
+          explanation: props[`Explanation ${letter}`]?.rich_text?.[0]?.plain_text || ""
         })),
-        tags: props.Tags?.multi_select?.map((tag) => tag.name.trim()) || [],
+        tags: props.Tags?.multi_select?.map((tag) => tag.name) || [],
         level: props.Level?.select?.name || "",
-        source: getRichText("Source") || ""
+        source: props.Source?.rich_text?.[0]?.plain_text || "",
+        category: props.Category?.select?.name || ""
       };
     });
 
@@ -57,4 +45,4 @@ export async function handler(event) {
       body: JSON.stringify({ error: error.message })
     };
   }
-}
+};

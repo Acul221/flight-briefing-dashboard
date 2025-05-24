@@ -7,6 +7,7 @@ const aircraftList = [
   { name: "B737", path: "/quiz/b737" },
   { name: "Weather", path: "/quiz/weather" },
   { name: "ICAO", path: "/quiz/icao" },
+  { name: "Procedure", path: "/quiz/procedure" },
 ];
 
 function QuizSelector() {
