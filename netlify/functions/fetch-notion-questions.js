@@ -9,14 +9,20 @@ exports.handler = async function (event) {
     const aircraft = params.get("aircraft") || "a320";
     const subject = params.get("subject")?.toLowerCase() || null;
 
+    // Tentukan filter berdasarkan apakah ini soal umum (icao/crm/weather) atau aircraft
+    const filter = ["icao", "crm", "weather"].includes(aircraft.toLowerCase())
+      ? {
+          property: "Category",
+          select: { equals: aircraft }
+        }
+      : {
+          property: "Aircraft",
+          multi_select: { contains: aircraft }
+        };
+
     const response = await notion.databases.query({
       database_id: databaseId,
-      filter: {
-        property: "Aircraft",
-        multi_select: {
-          contains: aircraft
-        }
-      }
+      filter
     });
 
     const questions = response.results

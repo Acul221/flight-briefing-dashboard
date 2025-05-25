@@ -45,23 +45,22 @@ export default function QuizEditorMaster() {
   };
 
   const handleExplanationChange = (index, value) => {
-    const updated = [...formData.explanations];
-    setFormData(prev => {
-      const updatedExp = [...prev.explanations];
-      updatedExp[index] = value;
-      return { ...prev, explanations: updatedExp };
-    });
+    const updatedExp = [...formData.explanations];
+    updatedExp[index] = value;
+    setFormData(prev => ({ ...prev, explanations: updatedExp }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const aircraftRequired = !["icao", "crm", "weather"].includes(formData.category.toLowerCase());
 
     if (
       !formData.id ||
       !formData.question ||
       formData.choices.some(c => !c) ||
       formData.correctIndex === null ||
-      !formData.aircraft
+      (aircraftRequired && !formData.aircraft)
     ) {
       alert("Please complete all required fields.");
       return;
@@ -106,7 +105,7 @@ export default function QuizEditorMaster() {
             </div>
           ))}
 
-          <select value={formData.aircraft} onChange={(e) => handleChange("aircraft", e.target.value)} className="w-full p-2 border rounded" required>
+          <select value={formData.aircraft} onChange={(e) => handleChange("aircraft", e.target.value)} className="w-full p-2 border rounded">
             <option value="">-- Select Aircraft --</option>
             <option value="a320">A320</option>
             <option value="a330">A330</option>
@@ -119,6 +118,7 @@ export default function QuizEditorMaster() {
             <option value="icao">ICAO</option>
             <option value="weather">Weather</option>
             <option value="crm">CRM</option>
+            <option value="systems">Aircraft Systems</option>
           </select>
 
           <input type="text" placeholder="Tags (comma separated)" value={formData.tags} onChange={(e) => handleChange("tags", e.target.value)} className="w-full p-2 border rounded" />
@@ -131,7 +131,9 @@ export default function QuizEditorMaster() {
             <option value="Hard">Hard</option>
           </select>
 
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Preview</button>
+          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Preview
+          </button>
         </form>
       ) : (
         <div className="text-center space-y-4">
@@ -158,7 +160,9 @@ export default function QuizEditorMaster() {
           <p><strong>Level:</strong> {formData.level}</p>
           <p><strong>Source:</strong> {formData.source}</p>
 
-          <button onClick={handleSubmit} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Submit to Master DB</button>
+          <button onClick={handleSubmit} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            Submit to Master DB
+          </button>
         </div>
       )}
     </div>
