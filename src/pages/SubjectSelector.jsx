@@ -25,7 +25,8 @@ const subjectByAircraft = {
     { name: "ATA49 - APU", path: "ata49" },
     { name: "ATA52 - Doors", path: "ata52" },
     { name: "ATA56 - Cockpit Windows", path: "ata56" },
-    { name: "ATA70 - Engines", path: "ata70" }
+    { name: "ATA70 - Engines", path: "ata70" },
+    { name: "PRO-NOR - Procedure", path: "procedure" },
   ],
   a330: [
     { name: "ATA21 - Air Conditioning", path: "ata21" },

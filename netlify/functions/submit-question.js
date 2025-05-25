@@ -37,7 +37,12 @@ exports.handler = async function (event) {
         },
         Tags: {
           multi_select: body.tags
-            ? body.tags.split(",").map((tag) => ({ name: tag.trim() }))
+            ? body.tags.map((tag) => ({ name: tag.trim() }))
+            : []
+        },
+        Aircraft: {
+          multi_select: body.aircraft
+            ? body.aircraft.split(",").map((ac) => ({ name: ac.trim() }))
             : []
         },
         Level: {
