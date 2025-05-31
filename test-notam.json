@@ -1,0 +1,14 @@
+{
+  "notams": [
+    {
+      "NOTAM": "C0606/25",
+      "ICAO": "WIOO",
+      "Valid From": "2025-05-09T14:00:00.000Z",
+      "Valid To": "2025-08-06T22:00:00.000Z",
+      "Text": "STRIP RWY 15/33 WIP DUE TO CABLE INSTALLATION PSN 27.5M BOTH SIDE FM CENTERLINE ALONG 2300M RMK : HEAVY EQPT PRESENT HEIGHT 2.54M",
+      "Category": "Strip/shoulder (specify runway) - Work in progress",
+      "Urgency": "Advisory"
+    }
+  ],
+  "icao": "WIOO"
+}

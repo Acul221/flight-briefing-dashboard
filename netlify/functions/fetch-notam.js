@@ -1,13 +1,10 @@
-export async function handler(event) {
-  const icao = event.queryStringParameters.icao;
-  const apiKey = process.env.AVWX_API_KEY;
+const { Client } = require("@notionhq/client");
 
-  if (!apiKey) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Missing AVWX API Key in env" })
-    };
-  }
+const notion = new Client({ auth: process.env.NOTION_TOKEN_NOTAM });
+const databaseId = process.env.NOTION_DATABASE_ID;
+
+exports.handler = async function (event) {
+  const icao = event.queryStringParameters.icao?.toUpperCase();
 
   if (!icao) {
     return {
@@ -17,29 +14,42 @@ export async function handler(event) {
   }
 
   try {
-    const response = await fetch(`https://avwx.rest/api/notam/${icao}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
+    const response = await notion.databases.query({
+      database_id: databaseId,
+      filter: {
+        property: "ICAO",
+        select: { equals: icao }
       },
+      sorts: [
+        {
+          property: "Valid From",
+          direction: "ascending"
+        }
+      ]
     });
 
-    if (!response.ok) {
+    const results = response.results.map((page) => {
+      const props = page.properties;
       return {
-        statusCode: response.status,
-        body: JSON.stringify({ error: `Failed to fetch NOTAM: ${response.statusText}` })
+        NOTAM: props.NOTAM?.title[0]?.text?.content || "",
+        "Valid From": props["Valid From"]?.date?.start || "",
+        "Valid To": props["Valid To"]?.date?.start || "",
+        Text: props.Text?.rich_text[0]?.text?.content || "",
+        Category: props.Category?.select?.name || "",
+        Urgency: props.Urgency?.select?.name || ""
       };
-    }
+    });
 
-    const data = await response.json();
     return {
       statusCode: 200,
-      body: JSON.stringify(data),
+      body: JSON.stringify(results)
     };
-  } catch (error) {
+
+  } catch (err) {
+    console.error(err);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Server error", details: error.message }),
+      body: JSON.stringify({ error: err.message })
     };
   }
-}
+};

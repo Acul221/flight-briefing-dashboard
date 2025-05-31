@@ -1,38 +1,60 @@
-import Breadcrumb from '../components/ui/Breadcrumb';
-import { useState } from 'react';
-import QuizEditorMaster from './QuizEditorMaster';
+import { useState } from "react";
+import Breadcrumb from "../components/ui/Breadcrumb";
+import QuizEditorMaster from "./QuizEditorMaster";
+import PasteNotamForm from "../components/PasteNotamForm";
 
 function SettingsPage() {
-  const [openEditor, setOpenEditor] = useState(false);
+  const [showQuizEditor, setShowQuizEditor] = useState(false);
+  const [showNotamUploader, setShowNotamUploader] = useState(false);
 
   return (
     <div className="p-6 space-y-6">
-      {/* Breadcrumb Navigation */}
-      <Breadcrumb items={[
-        { label: 'Dashboard', to: '/' },
-        { label: 'Settings' }
-      ]} />
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: "Dashboard", to: "/" },
+          { label: "Settings" },
+        ]}
+      />
 
-      {/* Content Settings */}
+      {/* Settings Intro */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
-        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Settings</h2>
-        <p className="text-gray-700 dark:text-gray-300">
-          Here you can configure your profile, preferences, and application settings.
+        <h2 className="text-xl font-bold mb-2 text-gray-800 dark:text-white">
+          Settings
+        </h2>
+        <p className="text-gray-600 dark:text-gray-300 text-sm">
+          Configure your preferences, upload tools, and experiment with internal modules.
         </p>
       </div>
 
       {/* Quiz Editor Accordion */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
         <button
-          className="w-full text-left font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-          onClick={() => setOpenEditor(!openEditor)}
+          onClick={() => setShowQuizEditor(!showQuizEditor)}
+          className="w-full text-left font-medium text-blue-600 dark:text-blue-400 hover:underline"
         >
-          {openEditor ? '▼ Hide Quiz Editor' : '▶ Show Quiz Editor'}
+          {showQuizEditor ? "▼ Hide Quiz Editor" : "▶ Show Quiz Editor"}
         </button>
 
-        {openEditor && (
+        {showQuizEditor && (
           <div className="mt-4 border-t pt-4">
-            <QuizEditorMaster />
+            <QuizEditorMaster />  {/* ✅ Fixed */}
+          </div>
+        )}
+      </div>
+
+      {/* NOTAM Upload Accordion */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+        <button
+          onClick={() => setShowNotamUploader(!showNotamUploader)}
+          className="w-full text-left font-medium text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          {showNotamUploader ? "▼ Hide NOTAM Uploader" : "▶ Show NOTAM Uploader"}
+        </button>
+
+        {showNotamUploader && (
+          <div className="mt-4 border-t pt-4">
+            <PasteNotamForm />
           </div>
         )}
       </div>

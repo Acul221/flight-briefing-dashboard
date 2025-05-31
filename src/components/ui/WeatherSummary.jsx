@@ -12,6 +12,11 @@ export default function WeatherSummary() {
   const [aiText, setAiText] = useState("");
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [fetchTrigger, setFetchTrigger] = useState({
+    departure: false,
+    dest: false,
+    additional: false,
+  });
 
   const fetchFromFn = async (endpoint, param) => {
     try {
@@ -25,7 +30,9 @@ export default function WeatherSummary() {
 
   const fetchCurrentWeather = async (lat, lon) => {
     try {
-      const res = await fetch(`/.netlify/functions/fetch-current?lat=${lat}&lon=${lon}`);
+      const res = await fetch(
+        `/.netlify/functions/fetch-current?lat=${lat}&lon=${lon}`
+      );
       return await res.json();
     } catch {
       return null;
@@ -111,6 +118,14 @@ export default function WeatherSummary() {
     handleUpdate();
   }, []);
 
+  const handleIcaoChange = (field, value) => {
+    const uppercaseValue = value.toUpperCase();
+    if (field === "departure") setDeparture(uppercaseValue);
+    if (field === "dest") setDest(uppercaseValue);
+    if (field === "additional") setAdditional(uppercaseValue);
+    setFetchTrigger((prev) => ({ ...prev, [field]: false }));
+  };
+
   return (
     <section className="p-6 mt-6 max-w-6xl mx-auto bg-white/30 dark:bg-gray-800/40 backdrop-blur-md rounded-xl shadow">
       <div className="flex justify-between items-center mb-2">
@@ -122,7 +137,7 @@ export default function WeatherSummary() {
             onClick={handleUpdate}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
-            🔄 Update
+            🔄 Update Weather
           </button>
           <button
             onClick={() => setExpanded(!expanded)}
@@ -140,27 +155,33 @@ export default function WeatherSummary() {
           </p>
 
           <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <IcaoInput
-              label="Departure ICAO"
-              placeholder="e.g., WADD"
-              value={departure}
-              onChange={setDeparture}
-            />
-            <IcaoInput
-              label="Destination ICAO"
-              placeholder="e.g., WIII"
-              value={dest}
-              onChange={setDest}
-            />
-            <IcaoInput
-              label="Additional ICAO"
-              placeholder="e.g., WARR"
-              value={additional}
-              onChange={setAdditional}
-            />
+            {["departure", "dest", "additional"].map((field) => (
+              <div key={field} className="space-y-1">
+                <IcaoInput
+                  label={`${field === "departure" ? "Departure" : field === "dest" ? "Destination" : "Additional"} ICAO`}
+                  placeholder="e.g., WIII"
+                  value={
+                    field === "departure"
+                      ? departure
+                      : field === "dest"
+                      ? dest
+                      : additional
+                  }
+                  onChange={(val) => handleIcaoChange(field, val)}
+                />
+                <button
+                  onClick={() =>
+                    setFetchTrigger((prev) => ({ ...prev, [field]: true }))
+                  }
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  🔍 Fetch {field.charAt(0).toUpperCase() + field.slice(1)} NOTAM
+                </button>
+              </div>
+            ))}
           </div>
 
-          <pre className="bg-gray-50 dark:bg-gray-900 p-4 rounded border text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line min-h-[160px] flex items-center justify-center">
+          <pre className="bg-gray-50 dark:bg-gray-900 p-4 rounded border text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap min-h-[160px]">
             {loading ? (
               <span className="animate-pulse text-blue-600 dark:text-blue-400">
                 ⏳ Generating weather narrative...
@@ -173,9 +194,27 @@ export default function WeatherSummary() {
           <ReasoningBox text={aiText} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {departure && <NotamBox icao={departure} title="Departure NOTAMs" />}
-            {dest && <NotamBox icao={dest} title="Destination NOTAMs" />}
-            {additional && <NotamBox icao={additional} title="Additional NOTAMs" />}
+            {departure && fetchTrigger.departure && (
+              <NotamBox
+                icao={departure}
+                title="Departure NOTAMs"
+                trigger={fetchTrigger.departure}
+              />
+            )}
+            {dest && fetchTrigger.dest && (
+              <NotamBox
+                icao={dest}
+                title="Destination NOTAMs"
+                trigger={fetchTrigger.dest}
+              />
+            )}
+            {additional && fetchTrigger.additional && (
+              <NotamBox
+                icao={additional}
+                title="Additional NOTAMs"
+                trigger={fetchTrigger.additional}
+              />
+            )}
           </div>
 
           <ExternalToolsBox />
