@@ -31,7 +31,9 @@ export async function handler(event) {
         messages: [
           {
             role: 'system',
-            content: 'You are an aviation weather analyst assistant. Provide a short, clear briefing based on the following weather summary.',
+            content: `You are an aviation weather analyst assistant. Your task is to analyze the given weather summary, focusing on METAR, TAF, and Trend Forecast. 
+            Provide a concise yet insightful explanation of weather phenomena that may affect flight operations, such as significant changes in visibility, wind shifts, thunderstorms, turbulence, or other hazards. 
+            Include explanations of why such phenomena occur if applicable. Keep the explanation professional, clear, and under 150 words.`,
           },
           {
             role: 'user',
@@ -39,7 +41,7 @@ export async function handler(event) {
           },
         ],
         temperature: 0.5,
-        max_tokens: 200,
+        max_tokens: 300,
       }),
     });
 

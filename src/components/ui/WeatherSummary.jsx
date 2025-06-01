@@ -18,10 +18,9 @@ export default function WeatherSummary() {
     additional: false,
   });
 
-  const fetchFromFn = async (endpoint, param) => {
+  const fetchAirportData = async (icao) => {
     try {
-      const url = `/.netlify/functions/${endpoint}?icao=${param}`;
-      const res = await fetch(url);
+      const res = await fetch(`/.netlify/functions/fetch-airport-data?icao=${icao}`);
       return await res.json();
     } catch {
       return null;
@@ -30,9 +29,7 @@ export default function WeatherSummary() {
 
   const fetchCurrentWeather = async (lat, lon) => {
     try {
-      const res = await fetch(
-        `/.netlify/functions/fetch-current?lat=${lat}&lon=${lon}`
-      );
+      const res = await fetch(`/.netlify/functions/fetch-current?lat=${lat}&lon=${lon}`);
       return await res.json();
     } catch {
       return null;
@@ -62,41 +59,22 @@ export default function WeatherSummary() {
       narrative += "⚠️ Location not available.\n";
     }
 
-    if (departure) {
-      narrative += `\n🛫 Departure (${departure}):\n`;
-      const [metar, taf, sigmet] = await Promise.all([
-        fetchFromFn("fetch-metar", departure),
-        fetchFromFn("fetch-taf", departure),
-        fetchFromFn("fetch-sigmet", departure),
-      ]);
-      narrative += `METAR: ${metar?.raw || "N/A"}\n`;
-      narrative += `TAF: ${taf?.raw || "N/A"}\n`;
-      narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
-    }
+    const fetchAndFormat = async (label, icao) => {
+      let output = `\n${label} (${icao}):\n`;
+      const data = await fetchAirportData(icao);
+      if (data) {
+        output += `METAR: ${data.metar?.raw || "N/A"}\n`;
+        output += `TAF: ${data.taf?.raw || "N/A"}\n`;
+        output += `SIGMET: ${data.sigmet?.rawSigmet || "No significant SIGMET"}\n`;
+      } else {
+        output += "⚠️ Weather data unavailable.\n";
+      }
+      return output;
+    };
 
-    if (dest) {
-      narrative += `\n🛬 Destination (${dest}):\n`;
-      const [metar, taf, sigmet] = await Promise.all([
-        fetchFromFn("fetch-metar", dest),
-        fetchFromFn("fetch-taf", dest),
-        fetchFromFn("fetch-sigmet", dest),
-      ]);
-      narrative += `METAR: ${metar?.raw || "N/A"}\n`;
-      narrative += `TAF: ${taf?.raw || "N/A"}\n`;
-      narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
-    }
-
-    if (additional) {
-      narrative += `\n🛬 Additional Airport (${additional}):\n`;
-      const [metar, taf, sigmet] = await Promise.all([
-        fetchFromFn("fetch-metar", additional),
-        fetchFromFn("fetch-taf", additional),
-        fetchFromFn("fetch-sigmet", additional),
-      ]);
-      narrative += `METAR: ${metar?.raw || "N/A"}\n`;
-      narrative += `TAF: ${taf?.raw || "N/A"}\n`;
-      narrative += `SIGMET: ${sigmet?.rawSigmet || "No significant SIGMET"}\n`;
-    }
+    if (departure) narrative += await fetchAndFormat("🛫 Departure", departure);
+    if (dest) narrative += await fetchAndFormat("🛬 Destination", dest);
+    if (additional) narrative += await fetchAndFormat("🛬 Additional Airport", additional);
 
     try {
       const res = await fetch("/.netlify/functions/get-weather-gpt", {
@@ -127,21 +105,21 @@ export default function WeatherSummary() {
   };
 
   return (
-    <section className="p-6 mt-6 max-w-6xl mx-auto bg-white/30 dark:bg-gray-800/40 backdrop-blur-md rounded-xl shadow">
-      <div className="flex justify-between items-center mb-2">
+    <section className="p-6 mt-6 max-w-6xl mx-auto bg-white/30 dark:bg-gray-800/30 backdrop-blur-md rounded-xl shadow-lg border border-white/10 space-y-4">
+      <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
           🛰️ Weather Summary and NOTAM
         </h2>
         <div className="flex gap-2">
           <button
             onClick={handleUpdate}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
           >
-            🔄 Update Weather
+            🔄 Update Weather & AI Briefing
           </button>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white px-3 py-2 rounded hover:opacity-80"
+            className="bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white px-3 py-2 rounded-lg hover:opacity-80 transition"
           >
             {expanded ? "▾ Hide" : "▸ Show"}
           </button>
@@ -150,11 +128,11 @@ export default function WeatherSummary() {
 
       {expanded && (
         <>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Based on your location, departure, destination, and additional airports
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Based on your location, departure, destination, and additional airports.
           </p>
 
-          <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-4">
             {["departure", "dest", "additional"].map((field) => (
               <div key={field} className="space-y-1">
                 <IcaoInput
@@ -169,51 +147,38 @@ export default function WeatherSummary() {
                   }
                   onChange={(val) => handleIcaoChange(field, val)}
                 />
-                <button
-                  onClick={() =>
-                    setFetchTrigger((prev) => ({ ...prev, [field]: true }))
-                  }
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  🔍 Fetch {field.charAt(0).toUpperCase() + field.slice(1)} NOTAM
-                </button>
               </div>
             ))}
           </div>
 
-          <pre className="bg-gray-50 dark:bg-gray-900 p-4 rounded border text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap min-h-[160px]">
-            {loading ? (
-              <span className="animate-pulse text-blue-600 dark:text-blue-400">
-                ⏳ Generating weather narrative...
-              </span>
-            ) : (
-              summary
-            )}
-          </pre>
+          <div className="bg-white/30 dark:bg-gray-900/40 border border-white/10 rounded-xl p-4 shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
+              📋 Weather Narrative
+            </h3>
+            <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
+              {loading ? (
+                <div className="space-y-2">
+                  <span className="block animate-pulse bg-gray-300 dark:bg-gray-700 h-4 w-full rounded"></span>
+                  <span className="block animate-pulse bg-gray-300 dark:bg-gray-700 h-4 w-3/4 rounded"></span>
+                  <span className="block animate-pulse bg-gray-300 dark:bg-gray-700 h-4 w-1/2 rounded"></span>
+                </div>
+              ) : (
+                summary
+              )}
+            </pre>
+          </div>
 
           <ReasoningBox text={aiText} />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {departure && fetchTrigger.departure && (
-              <NotamBox
-                icao={departure}
-                title="Departure NOTAMs"
-                trigger={fetchTrigger.departure}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {departure && (
+              <NotamBox icao={departure} title="Departure NOTAMs" trigger={fetchTrigger.departure} />
             )}
-            {dest && fetchTrigger.dest && (
-              <NotamBox
-                icao={dest}
-                title="Destination NOTAMs"
-                trigger={fetchTrigger.dest}
-              />
+            {dest && (
+              <NotamBox icao={dest} title="Destination NOTAMs" trigger={fetchTrigger.dest} />
             )}
-            {additional && fetchTrigger.additional && (
-              <NotamBox
-                icao={additional}
-                title="Additional NOTAMs"
-                trigger={fetchTrigger.additional}
-              />
+            {additional && (
+              <NotamBox icao={additional} title="Additional NOTAMs" trigger={fetchTrigger.additional} />
             )}
           </div>
 

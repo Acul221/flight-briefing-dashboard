@@ -27,10 +27,10 @@ export async function handler(event) {
     const result = {
       temp: data.main.temp,
       pressure: data.main.pressure,
-      clouds: data.weather?.[0]?.description || "unknown clouds",
-      visibility: data.visibility,
-      windSpeed: data.wind?.speed,
-      windDeg: data.wind?.deg,
+      clouds: data.weather?.[0]?.description || "N/A",
+      visibility: data.visibility || "N/A",
+      windSpeed: data.wind?.speed || "N/A",
+      windDeg: data.wind?.deg || "N/A",
     };
 
     return {
