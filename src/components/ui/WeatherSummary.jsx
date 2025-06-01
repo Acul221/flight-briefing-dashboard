@@ -10,7 +10,8 @@ export default function WeatherSummary() {
   const [additional, setAdditional] = useState("");
   const [summary, setSummary] = useState("Fetching weather summary...");
   const [aiText, setAiText] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingWeather, setLoadingWeather] = useState(false);
+  const [loadingNotam, setLoadingNotam] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [fetchTrigger, setFetchTrigger] = useState({
     departure: false,
@@ -37,45 +38,54 @@ export default function WeatherSummary() {
   };
 
   const handleUpdate = async () => {
-    setLoading(true);
+    setLoadingWeather(true);
+    setLoadingNotam(true);
     setAiText("");
     let narrative = `📍 Weather at your current location:\n`;
 
-    const pos = await new Promise((resolve) =>
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve(p.coords),
-        () => resolve(null)
-      )
-    );
+    try {
+      const pos = await new Promise((resolve) =>
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve(p.coords),
+          () => resolve(null)
+        )
+      );
 
-    if (pos) {
-      const local = await fetchCurrentWeather(pos.latitude, pos.longitude);
-      if (local) {
-        narrative += `🌡️ Temp: ${local.temp}°C, ${local.clouds}, Wind: ${local.windSpeed} m/s from ${local.windDeg}°, Pressure: ${local.pressure} hPa, Visibility: ${local.visibility} m.\n`;
+      if (pos) {
+        const local = await fetchCurrentWeather(pos.latitude, pos.longitude);
+        if (local) {
+          narrative += `🌡️ Temp: ${local.temp}°C, ${local.clouds}, Wind: ${local.windSpeed} m/s from ${local.windDeg}°, Pressure: ${local.pressure} hPa, Visibility: ${local.visibility} m.\n`;
+        } else {
+          narrative += "⚠️ Local weather unavailable.\n";
+        }
       } else {
-        narrative += "⚠️ Local weather unavailable.\n";
+        narrative += "⚠️ Location not available.\n";
       }
-    } else {
-      narrative += "⚠️ Location not available.\n";
+
+      const fetchAndFormat = async (label, icao) => {
+        let output = `\n${label} (${icao}):\n`;
+        const data = await fetchAirportData(icao);
+        if (data) {
+          output += `METAR: ${data.metar?.raw || "N/A"}\n`;
+          output += `TAF: ${data.taf?.raw || "N/A"}\n`;
+          output += `SIGMET: ${data.sigmet?.rawSigmet || "No significant SIGMET"}\n`;
+        } else {
+          output += "⚠️ Weather data unavailable.\n";
+        }
+        return output;
+      };
+
+      if (departure) narrative += await fetchAndFormat("🛫 Departure", departure);
+      if (dest) narrative += await fetchAndFormat("🛬 Destination", dest);
+      if (additional) narrative += await fetchAndFormat("🛬 Additional Airport", additional);
+    } catch {
+      narrative += "⚠️ Failed to fetch weather data.\n";
     }
 
-    const fetchAndFormat = async (label, icao) => {
-      let output = `\n${label} (${icao}):\n`;
-      const data = await fetchAirportData(icao);
-      if (data) {
-        output += `METAR: ${data.metar?.raw || "N/A"}\n`;
-        output += `TAF: ${data.taf?.raw || "N/A"}\n`;
-        output += `SIGMET: ${data.sigmet?.rawSigmet || "No significant SIGMET"}\n`;
-      } else {
-        output += "⚠️ Weather data unavailable.\n";
-      }
-      return output;
-    };
+    setSummary(narrative);
+    setLoadingWeather(false);
 
-    if (departure) narrative += await fetchAndFormat("🛫 Departure", departure);
-    if (dest) narrative += await fetchAndFormat("🛬 Destination", dest);
-    if (additional) narrative += await fetchAndFormat("🛬 Additional Airport", additional);
-
+    // AI Reasoning
     try {
       const res = await fetch("/.netlify/functions/get-weather-gpt", {
         method: "POST",
@@ -88,8 +98,13 @@ export default function WeatherSummary() {
       setAiText("⚠️ AI Reasoning error.");
     }
 
-    setSummary(narrative);
-    setLoading(false);
+    // Trigger NOTAM fetch
+    setFetchTrigger({
+      departure: !!departure,
+      dest: !!dest,
+      additional: !!additional,
+    });
+    setLoadingNotam(false);
   };
 
   useEffect(() => {
@@ -110,20 +125,12 @@ export default function WeatherSummary() {
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
           🛰️ Weather Summary and NOTAM
         </h2>
-        <div className="flex gap-2">
-          <button
-            onClick={handleUpdate}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            🔄 Update Weather & AI Briefing
-          </button>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white px-3 py-2 rounded-lg hover:opacity-80 transition"
-          >
-            {expanded ? "▾ Hide" : "▸ Show"}
-          </button>
-        </div>
+        <button
+          onClick={handleUpdate}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+        >
+          {loadingWeather || loadingNotam ? "⏳ Updating..." : "🔄 Update Weather & NOTAM"}
+        </button>
       </div>
 
       {expanded && (
@@ -156,11 +163,11 @@ export default function WeatherSummary() {
               📋 Weather Narrative
             </h3>
             <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
-              {loading ? (
-                <div className="space-y-2">
-                  <span className="block animate-pulse bg-gray-300 dark:bg-gray-700 h-4 w-full rounded"></span>
-                  <span className="block animate-pulse bg-gray-300 dark:bg-gray-700 h-4 w-3/4 rounded"></span>
-                  <span className="block animate-pulse bg-gray-300 dark:bg-gray-700 h-4 w-1/2 rounded"></span>
+              {loadingWeather ? (
+                <div className="space-y-2 animate-pulse">
+                  <div className="h-4 w-full bg-gray-300 dark:bg-gray-700 rounded"></div>
+                  <div className="h-4 w-3/4 bg-gray-300 dark:bg-gray-700 rounded"></div>
+                  <div className="h-4 w-1/2 bg-gray-300 dark:bg-gray-700 rounded"></div>
                 </div>
               ) : (
                 summary
@@ -171,14 +178,26 @@ export default function WeatherSummary() {
           <ReasoningBox text={aiText} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {departure && (
-              <NotamBox icao={departure} title="Departure NOTAMs" trigger={fetchTrigger.departure} />
+            {departure && fetchTrigger.departure && (
+              <NotamBox
+                icao={departure}
+                title="Departure NOTAMs"
+                trigger={fetchTrigger.departure}
+              />
             )}
-            {dest && (
-              <NotamBox icao={dest} title="Destination NOTAMs" trigger={fetchTrigger.dest} />
+            {dest && fetchTrigger.dest && (
+              <NotamBox
+                icao={dest}
+                title="Destination NOTAMs"
+                trigger={fetchTrigger.dest}
+              />
             )}
-            {additional && (
-              <NotamBox icao={additional} title="Additional NOTAMs" trigger={fetchTrigger.additional} />
+            {additional && fetchTrigger.additional && (
+              <NotamBox
+                icao={additional}
+                title="Additional NOTAMs"
+                trigger={fetchTrigger.additional}
+              />
             )}
           </div>
 
