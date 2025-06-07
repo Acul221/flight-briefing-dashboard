@@ -10,6 +10,7 @@ import WindyWidget from "../components/ui/WindyWidget";
 import INASIAMWidget from "../components/ui/INASIAMWidget";
 import SectionTitle from "../components/ui/SectionTitle";
 import CZIBWidget from "../components/ui/CZIBWidget";
+import WeatherWidgetsCustomSection from "../components/ui/WeatherWidgetsCustomSection.jsx";
 
 function DashboardPage() {
   const [infoVisible, setInfoVisible] = useState(false);
@@ -46,6 +47,43 @@ function DashboardPage() {
           Collapse All
         </button>
       </div>
+
+      {/* Weather Widgets */}
+      <section className="space-y-4">
+        <WeatherWidgetsCustomSection />
+      </section>
+
+      {/* Weather Maps */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionTitle icon="📡" title="Weather Maps" />
+          <motion.button
+            onClick={() => setWidgetVisible(!widgetVisible)}
+            whileTap={{ scale: 0.95 }}
+            title={widgetVisible ? "Hide section" : "Show section"}
+            className="text-gray-500 hover:text-blue-600 dark:hover:text-yellow-300 transition text-xl"
+          >
+            <motion.span
+              animate={{ rotate: widgetVisible ? 0 : -90 }}
+              transition={{ duration: 0.25 }}
+              className="inline-block"
+            >
+              ⮟
+            </motion.span>
+          </motion.button>
+        </div>
+        <motion.div
+          initial={false}
+          animate={{ height: widgetVisible ? "auto" : 0, opacity: widgetVisible ? 1 : 0 }}
+          transition={{ duration: 0.4 }}
+          className="overflow-hidden"
+        >
+          <div className="space-y-6">
+            <WindyWidget />
+            <INASIAMWidget />
+          </div>
+        </motion.div>
+      </section>
 
       {/* Information & Alerts */}
       <section className="space-y-4">
@@ -165,38 +203,6 @@ function DashboardPage() {
           className="overflow-hidden"
         >
           <WeatherSummary />
-        </motion.div>
-      </section>
-
-      {/* Weather Widgets */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <SectionTitle icon="📡" title="Weather Widgets" />
-          <motion.button
-            onClick={() => setWidgetVisible(!widgetVisible)}
-            whileTap={{ scale: 0.95 }}
-            title={widgetVisible ? "Hide section" : "Show section"}
-            className="text-gray-500 hover:text-blue-600 dark:hover:text-yellow-300 transition text-xl"
-          >
-            <motion.span
-              animate={{ rotate: widgetVisible ? 0 : -90 }}
-              transition={{ duration: 0.25 }}
-              className="inline-block"
-            >
-              ⮟
-            </motion.span>
-          </motion.button>
-        </div>
-        <motion.div
-          initial={false}
-          animate={{ height: widgetVisible ? "auto" : 0, opacity: widgetVisible ? 1 : 0 }}
-          transition={{ duration: 0.4 }}
-          className="overflow-hidden"
-        >
-          <div className="space-y-6">
-            <WindyWidget />
-            <INASIAMWidget />
-          </div>
         </motion.div>
       </section>
     </div>

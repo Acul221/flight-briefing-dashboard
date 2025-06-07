@@ -10,3 +10,11 @@
 .rac-scope input[type="time"]::-webkit-calendar-picker-indicator {
   filter: invert(1); /* Optional for dark mode */
 }
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
