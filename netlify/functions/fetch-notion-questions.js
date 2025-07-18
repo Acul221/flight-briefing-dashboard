@@ -10,7 +10,7 @@ exports.handler = async function (event) {
     const subject = params.get("subject")?.toLowerCase() || null;
 
     // Tentukan filter berdasarkan apakah ini soal umum (icao/crm/weather) atau aircraft
-    const filter = ["icao", "crm", "weather"].includes(aircraft.toLowerCase())
+    const filter = ["icao", "crm", "weather", "airlaw", "human performance"].includes(aircraft.toLowerCase())
       ? {
           property: "Category",
           select: { equals: aircraft }

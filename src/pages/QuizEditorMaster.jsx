@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { CATEGORIES } from "../constants/categories";
 
 export default function QuizEditorMaster() {
   const [formData, setFormData] = useState({
@@ -53,7 +54,8 @@ export default function QuizEditorMaster() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const aircraftRequired = !["icao", "crm", "weather"].includes(formData.category.toLowerCase());
+    const currentCategory = CATEGORIES.find(cat => cat.value === formData.category);
+    const aircraftRequired = currentCategory?.requiresAircraft;
 
     if (
       !formData.id ||
@@ -114,11 +116,9 @@ export default function QuizEditorMaster() {
 
           <select value={formData.category} onChange={(e) => handleChange("category", e.target.value)} className="w-full p-2 border rounded">
             <option value="">-- Select Category --</option>
-            <option value="procedure">Procedure</option>
-            <option value="icao">ICAO</option>
-            <option value="weather">Weather</option>
-            <option value="crm">CRM</option>
-            <option value="systems">Aircraft Systems</option>
+            {CATEGORIES.map(cat => (
+              <option key={cat.value} value={cat.value}>{cat.label}</option>
+            ))}
           </select>
 
           <input type="text" placeholder="Tags (comma separated)" value={formData.tags} onChange={(e) => handleChange("tags", e.target.value)} className="w-full p-2 border rounded" />
