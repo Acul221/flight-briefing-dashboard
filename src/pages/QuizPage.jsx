@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 
 function QuizPage() {
   const { aircraft, subject } = useParams();
+  const decodedSubject = decodeURIComponent(subject);
 
   const [questions, setQuestions] = useState([]);
   const [filteredQuestions, setFilteredQuestions] = useState([]);
@@ -104,7 +105,7 @@ function QuizPage() {
           <div className="mb-8 border p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
             <h2 className="text-xl font-bold mb-2">Grade Report</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              {aircraft.toUpperCase()} - {subject.toUpperCase()} | Exam Summary
+              {aircraft.toUpperCase()} - {decodedSubject.toUpperCase()} | Exam Summary
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Correct {correctAnswers.length} of {filteredQuestions.length} questions
@@ -150,7 +151,7 @@ function QuizPage() {
         <>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">
-              {aircraft.toUpperCase()} / {subject.toUpperCase()} — Quiz
+              {aircraft.toUpperCase()} / {decodedSubject.toUpperCase()} — Quiz
             </h2>
             <div className="flex items-center gap-2">
               <LevelBadge level={q.level.toLowerCase()} />
