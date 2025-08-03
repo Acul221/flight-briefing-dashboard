@@ -69,10 +69,22 @@ function DashboardPage() {
           setVisible={setMapsVisible}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div onClick={() => setFullscreenWidget("windy")} className="cursor-pointer">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setFullscreenWidget("windy")}
+              onKeyDown={(e) => e.key === "Enter" && setFullscreenWidget("windy")}
+              className="cursor-pointer focus:outline-none"
+            >
               <WindyWidget />
             </div>
-            <div onClick={() => setFullscreenWidget("inasiam")} className="cursor-pointer">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setFullscreenWidget("inasiam")}
+              onKeyDown={(e) => e.key === "Enter" && setFullscreenWidget("inasiam")}
+              className="cursor-pointer focus:outline-none"
+            >
               <INASIAMWidget />
             </div>
           </div>

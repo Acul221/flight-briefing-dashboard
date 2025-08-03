@@ -11,13 +11,22 @@ export default function FullscreenModal({ isOpen, onClose, children }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
+          {/* tombol close */}
           <button
             onClick={onClose}
             className="absolute top-4 left-4 z-[999] text-white bg-black/50 rounded-full p-2 hover:bg-red-500 transition"
           >
             ✕
           </button>
-          <div className="w-full h-full flex items-center justify-center">
+
+          {/* isi dengan safe area padding */}
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{
+              paddingTop: "env(safe-area-inset-top)",
+              paddingBottom: "env(safe-area-inset-bottom)",
+            }}
+          >
             <div className="w-full h-full overflow-hidden">
               {children}
             </div>

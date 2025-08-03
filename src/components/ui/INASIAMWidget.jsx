@@ -13,8 +13,9 @@ function INASIAMWidget({ fullscreen = false }) {
           fullscreen ? "touch-pan-y" : "hover:shadow-2xl transform hover:-translate-y-2"
         }`}
         style={{
-          height: fullscreen ? "calc(100dvh - 32px)" : undefined,
-          pointerEvents: fullscreen ? "auto" : "initial"
+          height: fullscreen ? "100dvh" : undefined,
+          minHeight: fullscreen ? "100vh" : undefined,
+          pointerEvents: fullscreen ? "auto" : "initial",
         }}
       >
         <iframe

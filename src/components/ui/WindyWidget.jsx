@@ -1,3 +1,5 @@
+// src/components/ui/WindyWidget.jsx
+
 function WindyWidget({ fullscreen = false }) {
   return (
     <section className={`${fullscreen ? "p-0 m-0" : "mt-8 max-w-6xl mx-auto px-4"}`}>
@@ -11,8 +13,9 @@ function WindyWidget({ fullscreen = false }) {
           fullscreen ? "touch-pan-y" : "hover:shadow-2xl transform hover:-translate-y-2"
         }`}
         style={{
-          height: fullscreen ? "calc(100dvh - 32px)" : undefined,
-          pointerEvents: fullscreen ? "auto" : "initial"
+          height: fullscreen ? "100dvh" : undefined,
+          minHeight: fullscreen ? "100vh" : undefined,
+          pointerEvents: fullscreen ? "auto" : "initial",
         }}
       >
         <iframe
