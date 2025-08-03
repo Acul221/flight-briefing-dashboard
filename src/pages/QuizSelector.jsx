@@ -10,7 +10,6 @@ const quizTopics = [
   { name: "CRM", path: "/quiz/crm" },
   { name: "Airlaw", path: "/quiz/airlaw" },
   { name: "Human Performance", path: "/quiz/human%20performance" },
-  { name: "Aircraft Systems", path: "/quiz/systems" },
 ];
 
 function QuizSelector() {
