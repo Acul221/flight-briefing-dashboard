@@ -17,7 +17,6 @@ function DashboardPage() {
   const [infoVisible, setInfoVisible] = useState(true);
   const [czibVisible, setCzibVisible] = useState(false);
   const [rampVisible, setRampVisible] = useState(false);
-  const [mapsVisible, setMapsVisible] = useState(false);
   const [summaryVisible, setSummaryVisible] = useState(true);
   const [fullscreenWidget, setFullscreenWidget] = useState(null);
 
@@ -50,52 +49,33 @@ function DashboardPage() {
           </button>
         </div>
 
-        {/* Weather Section */}
+        {/* Weather Summary & Tools */}
         <Section
-          title="Weather Summary & Widgets"
+          title="Weather Summary & Tools"
           icon="🌦️"
           visible={summaryVisible}
           setVisible={setSummaryVisible}
         >
           <WeatherWidgetsCustomSection />
-          <WeatherSummary />
-        </Section>
-
-        {/* Weather Maps */}
-        <Section
-          title="Weather Maps"
-          icon="📡"
-          visible={mapsVisible}
-          setVisible={setMapsVisible}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setFullscreenWidget("windy")}
-              onKeyDown={(e) => e.key === "Enter" && setFullscreenWidget("windy")}
-              className="cursor-pointer focus:outline-none"
-            >
-              <WindyWidget />
-            </div>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setFullscreenWidget("inasiam")}
-              onKeyDown={(e) => e.key === "Enter" && setFullscreenWidget("inasiam")}
-              className="cursor-pointer focus:outline-none"
-            >
-              <INASIAMWidget />
-            </div>
+          {/* Maps on Top */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+            <WindyWidget onFullscreen={() => setFullscreenWidget("windy")} />
+            <INASIAMWidget onFullscreen={() => setFullscreenWidget("inasiam")} />
           </div>
 
-          <FullscreenModal isOpen={fullscreenWidget !== null} onClose={() => setFullscreenWidget(null)}>
+          {/* Summary and Custom Widget */}
+          <WeatherSummary />
+          
+
+          {/* Fullscreen Modal */}
+          <FullscreenModal
+            isOpen={fullscreenWidget !== null}
+            onClose={() => setFullscreenWidget(null)}
+          >
             {fullscreenWidget === "windy" && <WindyWidget fullscreen key="windy-full" />}
             {fullscreenWidget === "inasiam" && <INASIAMWidget fullscreen key="inasiam-full" />}
           </FullscreenModal>
         </Section>
-
-
 
         {/* Info */}
         <Section

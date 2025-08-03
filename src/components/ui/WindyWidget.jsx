@@ -1,35 +1,49 @@
-// src/components/ui/WindyWidget.jsx
+import { useState } from "react";
+import FullscreenModal from "./FullscreenModal"; // pastikan kamu sudah punya ini
+import { Maximize2 } from "lucide-react";
 
-function WindyWidget({ fullscreen = false }) {
+export default function WindyWidget() {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   return (
-    <section className={`${fullscreen ? "p-0 m-0" : "mt-8 max-w-6xl mx-auto px-4"}`}>
-      {!fullscreen && (
-        <h2 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">
-          Live Windy Map
-        </h2>
-      )}
-      <div
-        className={`rounded-xl overflow-hidden shadow-lg transition-all ${
-          fullscreen ? "touch-pan-y" : "hover:shadow-2xl transform hover:-translate-y-2"
-        }`}
-        style={{
-          height: fullscreen ? "100dvh" : undefined,
-          minHeight: fullscreen ? "100vh" : undefined,
-          pointerEvents: fullscreen ? "auto" : "initial",
-        }}
-      >
+    <>
+      <section className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden relative">
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+            Live Windy Map
+          </h2>
+          <button
+            onClick={() => setIsFullscreen(true)}
+            className="text-gray-500 hover:text-blue-500"
+            title="Fullscreen"
+          >
+            <Maximize2 size={20} />
+          </button>
+        </div>
+
+        {/* Iframe */}
+        <div className="aspect-video">
+          <iframe
+            className="w-full h-full"
+            src="https://embed.windy.com/embed2.html?lat=-2.6&lon=117&zoom=4"
+            frameBorder="0"
+            title="Windy Map"
+            allowFullScreen
+          />
+        </div>
+      </section>
+
+      {/* Modal */}
+      <FullscreenModal isOpen={isFullscreen} onClose={() => setIsFullscreen(false)}>
         <iframe
-          className="w-full h-full"
-          style={{ touchAction: "pan-x pan-y" }}
-          src="https://embed.windy.com/embed2.html"
+          src="https://embed.windy.com/embed2.html?lat=-2.6&lon=117&zoom=4"
+          className="w-full h-full rounded-xl"
           frameBorder="0"
+          title="Windy Fullscreen"
           allowFullScreen
-          loading="lazy"
-          title="Windy Map"
-        ></iframe>
-      </div>
-    </section>
+        />
+      </FullscreenModal>
+    </>
   );
 }
-
-export default WindyWidget;
