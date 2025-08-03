@@ -8,12 +8,15 @@ function WindyWidget({ fullscreen = false }) {
       )}
       <div
         className={`rounded-xl overflow-hidden shadow-lg transition-all ${
-          fullscreen ? "h-[90vh] touch-pan-y" : "hover:shadow-2xl transform hover:-translate-y-2"
+          fullscreen ? "touch-pan-y" : "hover:shadow-2xl transform hover:-translate-y-2"
         }`}
-        style={{ pointerEvents: fullscreen ? "auto" : "initial" }}
+        style={{
+          height: fullscreen ? "calc(100dvh - 32px)" : undefined,
+          pointerEvents: fullscreen ? "auto" : "initial"
+        }}
       >
         <iframe
-          className={`w-full ${fullscreen ? "h-full" : "h-[450px]"}`}
+          className="w-full h-full"
           style={{ touchAction: "pan-x pan-y" }}
           src="https://embed.windy.com/embed2.html"
           frameBorder="0"

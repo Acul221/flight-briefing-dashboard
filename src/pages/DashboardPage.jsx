@@ -63,26 +63,26 @@ function DashboardPage() {
 
         {/* Weather Maps */}
         <Section
-        title="Weather Maps"
-        icon="📡"
-        visible={mapsVisible}
-        setVisible={setMapsVisible}
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div onClick={() => setFullscreenWidget("windy")} className="cursor-pointer">
-            <WindyWidget />
+          title="Weather Maps"
+          icon="📡"
+          visible={mapsVisible}
+          setVisible={setMapsVisible}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div onClick={() => setFullscreenWidget("windy")} className="cursor-pointer">
+              <WindyWidget />
+            </div>
+            <div onClick={() => setFullscreenWidget("inasiam")} className="cursor-pointer">
+              <INASIAMWidget />
+            </div>
           </div>
-          <div onClick={() => setFullscreenWidget("inasiam")} className="cursor-pointer">
-            <INASIAMWidget />
-          </div>
-        </div>
 
-        {/* Fullscreen Modal */}
-        <FullscreenModal isOpen={fullscreenWidget !== null} onClose={() => setFullscreenWidget(null)}>
-          {fullscreenWidget === "windy" && <WindyWidget fullscreen />}
-          {fullscreenWidget === "inasiam" && <INASIAMWidget fullscreen />}
-        </FullscreenModal>
-      </Section>
+          <FullscreenModal isOpen={fullscreenWidget !== null} onClose={() => setFullscreenWidget(null)}>
+            {fullscreenWidget === "windy" && <WindyWidget fullscreen key="windy-full" />}
+            {fullscreenWidget === "inasiam" && <INASIAMWidget fullscreen key="inasiam-full" />}
+          </FullscreenModal>
+        </Section>
+
 
 
         {/* Info */}

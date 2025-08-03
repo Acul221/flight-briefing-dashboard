@@ -1,3 +1,4 @@
+// src/components/ui/FullscreenModal.jsx
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function FullscreenModal({ isOpen, onClose, children }) {
@@ -10,15 +11,12 @@ export default function FullscreenModal({ isOpen, onClose, children }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          {/* tombol close di kiri atas */}
           <button
             onClick={onClose}
             className="absolute top-4 left-4 z-[999] text-white bg-black/50 rounded-full p-2 hover:bg-red-500 transition"
           >
             ✕
           </button>
-
-          {/* konten iframe */}
           <div className="w-full h-full flex items-center justify-center">
             <div className="w-full h-full overflow-hidden">
               {children}
