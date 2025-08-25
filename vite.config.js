@@ -17,68 +17,56 @@ export default defineConfig({
         background_color: '#ffffff',
         theme_color: '#1e3a8a',
         icons: [
-          {
-            src: '/favicon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/favicon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
+          { src: '/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/favicon-512x512.png', sizes: '512x512', type: 'image/png' }
         ],
         screenshots: [
-          {
-            src: "/screenshot-desktop.png",
-            sizes: "1280x720",
-            type: "image/png",
-            form_factor: "wide"
-          },
-          {
-            src: "/screenshot-mobile.png",
-            sizes: "360x640",
-            type: "image/png",
-            form_factor: "narrow"
-          }
+          { src: '/screenshot-desktop.png', sizes: '1280x720', type: 'image/png', form_factor: 'wide' },
+          { src: '/screenshot-mobile.png', sizes: '360x640', type: 'image/png', form_factor: 'narrow' }
         ]
       },
+      // ⬇⬇⬇ PENTING: atur Workbox agar tidak gagal build karena file besar
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,ico,svg}'],
+        // Naikkan limit > 4.73MB (default 2MiB)
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB
+        // Precache hanya aset umum. WASM/worker tesseract kita exclude.
+        globPatterns: ['**/*.{js,css,html,png,ico,svg,webmanifest}'],
+        globIgnores: ['**/tess/**'], // <-- lewati semua di folder /tess/
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'document',
             handler: 'NetworkFirst',
-            options: {
-              cacheName: 'pages',
-            },
+            options: { cacheName: 'pages' },
           },
           {
             urlPattern: ({ request }) =>
               request.destination === 'script' || request.destination === 'style',
             handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'assets',
-            },
+            options: { cacheName: 'assets' },
           },
           {
             urlPattern: ({ request }) => request.destination === 'image',
             handler: 'CacheFirst',
-            options: {
-              cacheName: 'images',
-            },
+            options: { cacheName: 'images' },
+          },
+          // Opsional: runtime cache untuk WASM/worker besar agar tetap cepat saat kedua kali
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/tess/'),
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'tesseract-runtime' },
           }
         ]
-      }
+      },
+      // devOptions: { enabled: false }, // biarkan default
     })
   ],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: { '@': path.resolve(__dirname, './src') },
   },
   build: {
     sourcemap: false,
+    // Opsional: kurangi warning chunk besar
+    chunkSizeWarningLimit: 2000,
   },
   define: {
     __DEFINES__: {},
