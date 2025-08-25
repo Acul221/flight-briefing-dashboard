@@ -25,9 +25,9 @@ export default function OcrPage() {
   const handleFileSelected = (file, rawText) => {
     const parsed = parseFlightPlanText(rawText);
     if (parsed.length > 0) {
-      setPendingEntry(parsed[0]); // Preview dulu
+      setPendingEntry(parsed[0]); // show preview
     } else {
-      console.warn("⚠️ Tidak ada entri valid dari OCR → cek RAW OCR TEXT");
+      console.warn("⚠️ No valid entries detected from OCR → check RAW OCR TEXT");
     }
   };
 
@@ -39,7 +39,7 @@ export default function OcrPage() {
     console.log("✅ Entry saved:", withId);
   };
 
-  // Hitung total jam kumulatif
+  // Total cumulative hours
   const totalBlock = entries.reduce((acc, e) => acc + (e.block_mins || 0), 0);
   const totalAir = entries.reduce((acc, e) => acc + (e.air_mins || 0), 0);
 
@@ -49,15 +49,32 @@ export default function OcrPage() {
 
       <OcrUploader onFileSelected={handleFileSelected} />
 
-      {/* Preview sebelum save */}
+      {/* Preview before saving */}
       {pendingEntry && (
         <div className="mt-4 p-3 rounded-lg border bg-gray-50">
           <h2 className="font-medium mb-2">Preview Entry</h2>
+
+          {/* Warning box */}
+          {pendingEntry.confidence && pendingEntry.confidence.length > 0 && (
+            <div className="mb-3 p-2 rounded bg-yellow-100 text-yellow-800 text-sm">
+              ⚠️ Some fields may not be recognized correctly:
+              <ul className="list-disc pl-5">
+                {pendingEntry.confidence.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+              Please check & edit manually before saving.
+            </div>
+          )}
+
+          {/* Editable fields */}
           {[
             ["date", "Date"],
             ["aircraft", "Aircraft"],
             ["registration", "Registration"],
             ["flight_no", "Flight No"],
+            ["std", "STD"],
+            ["sta", "STA"],
             ["from", "From"],
             ["to", "To"],
             ["block_off", "Block Off"],
@@ -68,7 +85,15 @@ export default function OcrPage() {
             <div key={k} className="flex items-center gap-2 mb-2">
               <label className="w-32 text-sm">{label}</label>
               <input
-                className="flex-1 border rounded p-2 text-sm"
+                className={`flex-1 border rounded p-2 text-sm ${
+                  !pendingEntry[k] ||
+                  (pendingEntry.confidence &&
+                    pendingEntry.confidence.some((w) =>
+                      w.toLowerCase().includes(k.toLowerCase())
+                    ))
+                    ? "border-red-400 bg-red-50"
+                    : "border-gray-300"
+                }`}
                 value={pendingEntry[k] || ""}
                 onChange={(e) =>
                   setPendingEntry((d) => ({ ...d, [k]: e.target.value }))
@@ -76,6 +101,7 @@ export default function OcrPage() {
               />
             </div>
           ))}
+
           <div className="flex gap-2 mt-2">
             <button
               onClick={saveEntry}
@@ -108,8 +134,10 @@ export default function OcrPage() {
                 <th className="p-1">To</th>
                 <th className="p-1 text-right">Block</th>
                 <th className="p-1 text-right">Air</th>
+                <th className="p-1">⚠️</th>
               </tr>
             </thead>
+
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id} className="border-b">
@@ -121,16 +149,28 @@ export default function OcrPage() {
                   <td className="p-1">{e.to || ""}</td>
                   <td className="p-1 text-right">{toHHMM(e.block_mins)}</td>
                   <td className="p-1 text-right">{toHHMM(e.air_mins)}</td>
+                  <td className="p-1">
+                    {e.confidence && e.confidence.length > 0 ? (
+                      <span
+                        className="text-yellow-600 cursor-pointer"
+                        title={e.confidence.join("\n")}
+                      >
+                        ⚠️
+                      </span>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
+
               {entries.length === 0 && (
                 <tr>
-                  <td className="p-3 text-gray-500" colSpan={8}>
-                    Belum ada entri. Upload flight plan untuk mulai.
+                  <td className="p-3 text-gray-500" colSpan={9}>
+                    No entries yet. Upload a flight plan to start.
                   </td>
                 </tr>
               )}
             </tbody>
+
             {entries.length > 0 && (
               <tfoot>
                 <tr className="font-semibold border-t">
@@ -139,12 +179,14 @@ export default function OcrPage() {
                   </td>
                   <td className="p-1 text-right">{toHHMM(totalBlock)}</td>
                   <td className="p-1 text-right">{toHHMM(totalAir)}</td>
+                  <td></td>
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
 
+        {/* Action buttons */}
         <div className="flex gap-2 mt-4">
           <button
             onClick={exportCSV}

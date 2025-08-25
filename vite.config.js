@@ -1,3 +1,4 @@
+// vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -25,48 +26,55 @@ export default defineConfig({
           { src: '/screenshot-mobile.png', sizes: '360x640', type: 'image/png', form_factor: 'narrow' }
         ]
       },
-      // ⬇⬇⬇ PENTING: atur Workbox agar tidak gagal build karena file besar
+      // PENTING: Workbox config
       workbox: {
-        // Naikkan limit > 4.73MB (default 2MiB)
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB
-        // Precache hanya aset umum. WASM/worker tesseract kita exclude.
+        // ⬇ mencegah error "maximumFileSizeToCacheInBytes" dari WASM besar
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB (> 4.73MB)
         globPatterns: ['**/*.{js,css,html,png,ico,svg,webmanifest}'],
-        globIgnores: ['**/tess/**'], // <-- lewati semua di folder /tess/
+        globIgnores: ['**/tess/**'], // jangan precache folder WASM/worker
+
+        // PWA update langsung aktif (tanpa nunggu tab lama ditutup)
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+
+        // (opsional) kalau SPA, fallback ke index.html
+        // navigateFallback: '/index.html',
+
+        // Runtime caching dasar
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'document',
             handler: 'NetworkFirst',
-            options: { cacheName: 'pages' },
+            options: { cacheName: 'pages' }
           },
           {
             urlPattern: ({ request }) =>
               request.destination === 'script' || request.destination === 'style',
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'assets' },
+            options: { cacheName: 'assets' }
           },
           {
             urlPattern: ({ request }) => request.destination === 'image',
             handler: 'CacheFirst',
-            options: { cacheName: 'images' },
+            options: { cacheName: 'images' }
           },
-          // Opsional: runtime cache untuk WASM/worker besar agar tetap cepat saat kedua kali
+          // Cache runtime untuk file besar Tesseract (tidak diprecache)
           {
             urlPattern: ({ url }) => url.pathname.includes('/tess/'),
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'tesseract-runtime' },
+            options: { cacheName: 'tesseract-runtime' }
           }
         ]
-      },
-      // devOptions: { enabled: false }, // biarkan default
+      }
     })
   ],
   resolve: {
-    alias: { '@': path.resolve(__dirname, './src') },
+    alias: { '@': path.resolve(__dirname, './src') }
   },
   build: {
     sourcemap: false,
-    // Opsional: kurangi warning chunk besar
-    chunkSizeWarningLimit: 2000,
+    chunkSizeWarningLimit: 2000 // kurangin noise peringatan chunk besar
   },
   define: {
     __DEFINES__: {},
@@ -81,5 +89,9 @@ export default defineConfig({
     __HMR_TIMEOUT__: JSON.stringify(30000),
     __WS_TOKEN__: JSON.stringify(''),
     __HMR_ENABLE_OVERLAY__: false,
-  },
+
+    // 🔎 Build stamp buat verifikasi versi di UI (opsional tampilkan di footer)
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __COMMIT_REF__: JSON.stringify(process.env.COMMIT_REF || '')
+  }
 });

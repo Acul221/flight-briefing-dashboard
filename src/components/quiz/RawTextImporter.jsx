@@ -1,6 +1,6 @@
 // src/components/quiz/RawTextImporter.jsx
 import { useState, useEffect } from "react";
-import { parseRawBatch_v2 } from "../../lib/parseRawQuestion_v2";
+import { parseRawBatch_v2 } from "../../lib/parseRawQuestion_v2"; // pastikan path ini benar
 
 export default function RawTextImporter({ onImport }) {
   const [text, setText] = useState("");
@@ -12,8 +12,8 @@ export default function RawTextImporter({ onImport }) {
     if (saved) setText(saved);
   }, []);
   useEffect(() => {
-    const id = setTimeout(()=>localStorage.setItem("quiz_raw_draft", text), 400);
-    return ()=>clearTimeout(id);
+    const id = setTimeout(() => localStorage.setItem("quiz_raw_draft", text), 400);
+    return () => clearTimeout(id);
   }, [text]);
 
   const handleParse = () => {
@@ -21,7 +21,7 @@ export default function RawTextImporter({ onImport }) {
     try {
       const arr = parseRawBatch_v2(text);
       setPreview(arr);
-      if (arr.length === 1 && onImport) onImport(arr[0]); // auto isi form jika 1 soal
+      if (arr.length === 1 && onImport) onImport(arr[0]); // auto isi form jika hanya 1 soal
     } catch (e) {
       setPreview([]);
       setError(e.message || "Parse error");
@@ -43,18 +43,28 @@ export default function RawTextImporter({ onImport }) {
 
       <textarea
         className="w-full h-44 p-3 rounded-lg border"
-        placeholder={`Tempel format:\n\nID: ...\nQuestion:\n...\n\nA. ...\n→ ✅ Correct – ...\nB. ...\n→ ❌ Incorrect – ...\n...\n\nTags: ...\nLevel: ...\nSource: ...\n\nGunakan '---' untuk banyak soal.`}
+        placeholder={`Tempel format dengan dukungan gambar:\n\nQuestion:\n...\nImage: https://...\n\nA. ...\nImage: https://...\n→ ✅ Correct – ...\nB. ...\n→ ❌ Incorrect – ...\n\nAtau pakai ImageA:, ImageB:, ...\nPisahkan banyak soal pakai ---`}
         value={text}
-        onChange={(e)=>setText(e.target.value)}
+        onChange={(e) => setText(e.target.value)}
       />
 
       <div className="mt-3 flex gap-2">
-        <button type="button" onClick={handleParse}
-          className="px-4 py-2 rounded-lg bg-black text-white dark:bg-white dark:text-black">
+        <button
+          type="button"
+          onClick={handleParse}
+          className="px-4 py-2 rounded-lg bg-black text-white dark:bg-white dark:text-black"
+        >
           Parse & Preview
         </button>
-        <button type="button" onClick={()=>{setText("");setPreview([]);setError("");}}
-          className="px-4 py-2 rounded-lg border">
+        <button
+          type="button"
+          onClick={() => {
+            setText("");
+            setPreview([]);
+            setError("");
+          }}
+          className="px-4 py-2 rounded-lg border"
+        >
           Clear
         </button>
       </div>
@@ -66,20 +76,57 @@ export default function RawTextImporter({ onImport }) {
           {preview.map((q, idx) => (
             <div key={idx} className="border rounded-lg p-3">
               <div className="text-sm opacity-70 mb-1">
-                {(q.category || "No category")} • {(q.level)} • {(q.tags||[]).join(", ") || "no tags"}
+                {(q.category || "No category")} • {(q.level)} • {(q.tags || []).join(", ") || "no tags"}
               </div>
               <div className="font-medium mb-2">{q.question}</div>
-              <ul className="text-sm space-y-1">
-                {q.choices.map(c=>(
-                  <li key={c.label}>
-                    <b>{c.label}.</b> {c.text} {c.isCorrect && <span className="ml-2 text-xs px-2 py-0.5 border rounded-full">Correct</span>}
-                    {c.explanation && <div className="opacity-70 pl-6">Exp: {c.explanation}</div>}
+
+              {/* Gambar pertanyaan */}
+              {q.questionImage && (
+                <div className="mb-3">
+                  <img
+                    src={q.questionImage}
+                    alt="Question"
+                    className="max-h-44 rounded-lg border"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+
+              <ul className="text-sm space-y-2">
+                {q.choices.map((c) => (
+                  <li key={c.label} className="pb-2 border-b last:border-none">
+                    <div>
+                      <b>{c.label}.</b> {c.text}{" "}
+                      {c.isCorrect && (
+                        <span className="ml-2 text-xs px-2 py-0.5 border rounded-full">
+                          Correct
+                        </span>
+                      )}
+                    </div>
+                    {/* Gambar pilihan */}
+                    {c.image && (
+                      <div className="mt-1">
+                        <img
+                          src={c.image}
+                          alt={`Choice ${c.label}`}
+                          className="max-h-32 rounded border"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+                    {c.explanation && (
+                      <div className="opacity-70 pl-6">Exp: {c.explanation}</div>
+                    )}
                   </li>
                 ))}
               </ul>
+
               <div className="mt-2">
-                <button type="button" className="px-3 py-1.5 rounded-lg border"
-                  onClick={()=>onImport && onImport(q)}>
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-lg border"
+                  onClick={() => onImport && onImport(q)}
+                >
                   Send to Form
                 </button>
               </div>
@@ -94,14 +141,17 @@ export default function RawTextImporter({ onImport }) {
 const EXAMPLE = `ID: FCOM-ENG-FUEL-010
 Question:
 How does the FADEC achieve thrust regulation based on EPR demand?
+Image: https://cdn.example.com/img/faadec-epr.png
 
 A. By adjusting thrust lever detent logic
+Image: https://cdn.example.com/img/choice-a.png
 → ❌ Incorrect – Thrust lever detents guide pilot input but do not directly regulate thrust.
 
 B. By modulating N2 rotation via accessory gearbox
 → ❌ Incorrect – Accessory gearbox does not control N2 directly.
 
 C. By computing required fuel flow via FMV to maintain target EPR
+ImageC: https://cdn.example.com/img/choice-c.png
 → ✅ Correct – FADEC maintains EPR by modulating fuel flow through FMV.
 
 D. By commanding engine starter valve modulation

@@ -10,28 +10,23 @@ const toHHMM = (mins) => {
 
 export const useLogbookStore = create((set, get) => ({
   entries: [],
-
-  // Tambah satu entri manual
-  addEntry: (e) => set((s) => ({ entries: [e, ...s.entries] })),
-
-  // Tambah multiple entri (hasil OCR parser)
   addEntries: (newEntries) =>
     set((state) => ({
-      entries: [...newEntries, ...state.entries],
+      entries: [...state.entries, ...newEntries],
     })),
-
-  // Hapus semua entri
   clear: () => set({ entries: [] }),
 
-  // Export ke CSV
   exportCSV: () => {
     const rows = [
       [
         "Date",
         "AircraftType",
         "Registration",
+        "FlightNo",
         "From",
         "To",
+        "STD",
+        "STA",
         "BlockOff",
         "Takeoff",
         "Landing",
@@ -39,29 +34,31 @@ export const useLogbookStore = create((set, get) => ({
         "BlockTime",
         "AirTime",
         "Remarks",
+        "Warnings", // ✅ Kolom baru
       ],
       ...get().entries.map((e) => [
         e.date || e.date_hint || "",
         e.aircraft || "",
         e.registration || "",
+        e.flight_no || "",
         e.from || "",
         e.to || "",
-        e.bo || "",
-        e.toff || "",
-        e.ldg || "",
-        e.bn || "",
+        e.std || "",
+        e.sta || "",
+        e.block_off || "",
+        e.takeoff || "",
+        e.landing || "",
+        e.block_on || "",
         toHHMM(e.block_mins),
         toHHMM(e.air_mins),
         e.remarks || "",
+        e.confidence ? e.confidence.join("; ") : "", // ✅ isi warnings
       ]),
     ];
+
     const csv = rows
       .map((r) =>
-        r
-          .map((c) =>
-            `"${(c ?? "").toString().replace(/"/g, '""')}"`
-          )
-          .join(",")
+        r.map((c) => `"${(c ?? "").toString().replace(/"/g, '""')}"`).join(",")
       )
       .join("\n");
 

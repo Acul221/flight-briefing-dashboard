@@ -2,21 +2,48 @@ import { useRef, useState, useEffect } from "react";
 import { warmup, getWorker, recognizePSM } from "../../lib/tessCdnWorker";
 import { normalizeText } from "../../lib/normalizeText";
 
-function preprocessImage(img) {
+// 🟢 Preprocess image: resize + grayscale + adaptive threshold
+function preprocessImage(img, width = 1200) {
+  const scale = width / img.naturalWidth;
   const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+  canvas.width = width;
+  canvas.height = Math.floor(img.naturalHeight * scale);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0);
 
+  // resize
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  // get image data
   const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let total = 0;
   for (let i = 0; i < im.data.length; i += 4) {
-    const g = 0.299 * im.data[i] + 0.587 * im.data[i + 1] + 0.114 * im.data[i + 2];
-    const v = g > 180 ? 255 : 0;
+    const g =
+      0.299 * im.data[i] +
+      0.587 * im.data[i + 1] +
+      0.114 * im.data[i + 2];
+    total += g;
+  }
+  const avg = total / (im.data.length / 4);
+
+  // adaptive threshold
+  for (let i = 0; i < im.data.length; i += 4) {
+    const g =
+      0.299 * im.data[i] +
+      0.587 * im.data[i + 1] +
+      0.114 * im.data[i + 2];
+    const v = g > avg * 0.9 ? 255 : 0;
     im.data[i] = im.data[i + 1] = im.data[i + 2] = v;
   }
   ctx.putImageData(im, 0, 0);
+
   return canvas.toDataURL("image/png");
+}
+
+// 🟢 Score OCR result based on keyword presence
+function scoreText(text) {
+  const keywords = ["DEP", "ARR", "BLK", "BLOCK", "LDNG", "TKOF", "AIR", "TIME"];
+  const S = text.toUpperCase();
+  return keywords.reduce((acc, k) => acc + (S.includes(k) ? 1 : 0), 0);
 }
 
 export default function OcrUploader({ onFileSelected }) {
@@ -45,20 +72,53 @@ export default function OcrUploader({ onFileSelected }) {
         const t0 = performance.now();
 
         try {
+          // Preprocess
           const processed = preprocessImage(img);
 
-          let fullText = await recognizePSM(processed, 6, {
-            tessedit_char_whitelist:
-              "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
-          });
+          // Run multi-pass OCR
+          const text6 = normalizeText(
+            await recognizePSM(processed, 6, {
+              tessedit_char_whitelist:
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
+            })
+          );
+          const text7 = normalizeText(
+            await recognizePSM(processed, 7, {
+              tessedit_char_whitelist:
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
+            })
+          );
 
-          fullText = normalizeText(fullText);
+          // Pick best between 6 and 7
+          let best =
+            scoreText(text7) > scoreText(text6)
+              ? { text: text7, mode: "PSM 7", score: scoreText(text7) }
+              : { text: text6, mode: "PSM 6", score: scoreText(text6) };
 
-          console.log("📄 FULL OCR TEXT (normalized):", fullText.slice(0, 500));
-          setDebug(fullText.slice(0, 1000));
+          // If too weak → fallback to PSM 11
+          if (best.score < 2) {
+            console.log("⚠️ Low score on PSM 6/7, running fallback PSM 11…");
+            const text11 = normalizeText(
+              await recognizePSM(processed, 11, {
+                tessedit_char_whitelist:
+                  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
+              })
+            );
+            const score11 = scoreText(text11);
+            if (score11 > best.score) {
+              best = { text: text11, mode: "PSM 11 (fallback)", score: score11 };
+            }
+          }
 
+          console.log(
+            `📄 BEST OCR (${best.mode}, score=${best.score}):`,
+            best.text.slice(0, 500)
+          );
+          setDebug(best.text.slice(0, 1000));
+
+          // Pass to parent
           if (onFileSelected) {
-            onFileSelected(f, fullText);
+            onFileSelected(f, best.text);
           }
         } catch (err) {
           console.error("❌ OCR failed:", err);
