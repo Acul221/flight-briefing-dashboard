@@ -12,6 +12,7 @@
     "@use-gesture/react": "^10.3.1",
     "axios": "^1.9.0",
     "csv-parse": "^5.6.0",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
     "fast-xml-parser": "^5.2.1",
     "framer-motion": "^12.9.7",
@@ -25,10 +26,14 @@
     "pdf-parse": "^1.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-image-crop": "^11.0.10",
     "react-router-dom": "^7.5.3",
     "react-time-picker": "^7.0.0",
     "rss-parser": "^3.13.0",
-    "swiper": "^11.2.8"
+    "swiper": "^11.2.8",
+    "tesseract.js": "^6.0.1",
+    "zod": "^4.1.0",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.4.1",
