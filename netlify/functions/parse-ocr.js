@@ -1,52 +1,78 @@
 // netlify/functions/parse-ocr.js
-const hhmm = (s) => s ? s.replace(".",":").trim().padStart(5,"0") : "";
-const toMins = (s) => {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(s||"");
-  return m ? (+m[1])*60 + (+m[2]) : null;
-};
-const wrap = (a,b) => (a==null||b==null) ? null : (b - a + 1440) % 1440;
-const pick = (T, re, i=1) => (T.match(re)||[])[i] || "";
 
-exports.handler = async (event) => {
-  if (event.httpMethod === "GET") {
-    return { statusCode: 200, body: JSON.stringify({ ok: true, name: "parse-ocr" }) };
-  }
+export async function handler(event) {
   try {
-    const { rawText = "" } = JSON.parse(event.body || "{}");
-    const T = rawText.toUpperCase();
+    const body = JSON.parse(event.body || "{}");
+    let raw = (body.rawText || "");
 
-    const out = {};
-    out.date_hint  = pick(T, /\bSTD[:\s]*([0-3]?\d[A-Z]{3})\b/) || pick(T, /\b([0-3]?\d[A-Z]{3})\b/);
-    out.aircraft   = pick(T, /\b(A\d{3}(?:-\d{3})?)\b/);
-    out.registration = pick(T, /\b([A-Z]{2}-[A-Z0-9]{3,4})\b/);
-    out.flight_no  = pick(T, /\b([A-Z]{2,4}\d{2,4})\b/);
+    // ------- Normalisasi kuat -------
+    const N = (s) => (s || "")
+      .replace(/\r/g, "")
+      .replace(/[|]/g, "I")
+      .replace(/[“”„]/g, '"')
+      .replace(/[’`´]/g, "'");
 
-    // DEP/ARR muncul sebagai "DEP WIII/CGK" dan "ARR WADD/DPS"
-    out.from = pick(T, /\bDEP[^A-Z0-9]{0,10}([A-Z]{4})\b/) || (T.match(/\b([A-Z]{4})\/[A-Z]{3,4}\b/)?.[1] || "");
-    out.to   = pick(T, /\bARR[^A-Z0-9]{0,10}([A-Z]{4})\b/) || (T.match(/\b([A-Z]{4})\/[A-Z]{3,4}\b/g)?.slice(-1)[0]?.match(/[A-Z]{4}/)?.[0] || "");
+    // Untuk jam (koreksi karakter yang sering salah)
+    const normTime = (s) => (s || "")
+      .toUpperCase()
+      .replace(/O/g, "0").replace(/I/g, "1").replace(/B/g, "8")
+      .replace(/[^0-9:.]/g, "")
+      .replace(/\./g, ":");
 
-    out.bo   = hhmm(pick(T, /\b(?:BLK[\s-]?OFF|BLOCK[\s-]?OFF|BO)[:\s]*([0-2]?\d[:\.][0-5]\d)\b/, 1));
-    out.bn   = hhmm(pick(T, /\b(?:BLK[\s-]?ON|BLOCK[\s-]?ON|BN)[:\s]*([0-2]?\d[:\.][0-5]\d)\b/, 1));
-    out.toff = hhmm(pick(T, /\b(?:TKO?F|T[\/ ]?O|TAKE\s*OFF)[:\s]*([0-2]?\d[:\.][0-5]\d)\b/, 1));
-    out.ldg  = hhmm(pick(T, /\b(?:LDNG|LDG|LAND(?:ING)?)[:\s]*([0-2]?\d[:\.][0-5]\d)\b/, 1));
+    // Untuk REG/FLT
+    const normIdent = (s) => (s || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9-]/g, "")
+      .replace(/5/g, "S")  // 5 ↔ S
+      .replace(/0/g, "O"); // 0 ↔ O
 
-    // alternatif eksplisit: "BLOCK 01:53" & "AIR TIME 01:31"
-    const block_hhmm = hhmm(pick(T, /\bBLOCK[:\s]*([0-2]?\d[:\.][0-5]\d)\b/, 1));
-    const air_hhmm   = hhmm(pick(T, /\bAIR\s*TIME[:\s]*([0-2]?\d[:\.][0-5]\d)\b/, 1));
-    if (block_hhmm) out.block_hhmm = block_hhmm;
-    if (air_hhmm) out.air_hhmm = air_hhmm;
+    const clean = N(raw).toUpperCase().replace(/\s+/g, " ");
 
-    const block_mins = block_hhmm ? toMins(block_hhmm) : wrap(toMins(out.bo), toMins(out.bn));
-    const air_mins   = air_hhmm ? toMins(air_hhmm)     : wrap(toMins(out.toff), toMins(out.ldg));
-    if (block_mins != null) out.block_mins = block_mins;
-    if (air_mins != null) out.air_mins = air_mins;
+    const pick = (re) => {
+      const m = clean.match(re);
+      return m ? m[1].trim() : "";
+    };
 
-    // debug supaya kamu tahu OCR-nya sudah terbaca
-    out.debug_sample = T.slice(0, 400);
-    out.ocr_len = T.length;
+    // ------- Ambil field utama -------
+    const aircraft     = normIdent(pick(/(A320-\s?\d{3}[A-Z]?)/));
+    const registration = normIdent(pick(/\/\s*(PK-[A-Z0-9]+)/));
+    const flight_no    = normIdent(pick(/(SJV\s?\d{3,4})/)).replace(/\s+/g, "");
+    const date_hint    = pick(/STD:([0-9]{1,2}[A-Z]{3})/);
 
-    return { statusCode: 200, body: JSON.stringify(out) };
-  } catch (e) {
-    return { statusCode: 400, body: JSON.stringify({ error: e.message || "bad request" }) };
+    const from = pick(/DEP\s+([A-Z]{4})/);
+    const to   = pick(/ARR\s+([A-Z]{4})/);
+
+    const bo   = normTime(pick(/BLK-?OFF\s+([0-2]?\d[:.][0-5]\d)/));
+    const toff = normTime(pick(/TKOF\s+([0-2]?\d[:.][0-5]\d)/));
+    const ldg  = normTime(pick(/LDN?G\s+([0-2]?\d[:.][0-5]\d)/)); // LDG / LDNG
+    const bn   = normTime(pick(/BLK-?ON\s+([0-2]?\d[:.][0-5]\d)/));
+
+    const block_hhmm = normTime(pick(/BLOCK\s+([0-2]?\d[:.][0-5]\d)/));
+    const air_hhmm   = normTime(pick(/AIR\s*TIME\s+([0-2]?\d[:.][0-5]\d)/));
+
+    const toMins = (s) => {
+      if (!s || !s.includes(":")) return null;
+      const [h, m] = s.split(":").map((n) => (+n || 0));
+      return h * 60 + m;
+    };
+
+    const data = {
+      date_hint,
+      aircraft,
+      registration,
+      flight_no,
+      from,
+      to,
+      bo, toff, ldg, bn,
+      block_hhmm, air_hhmm,
+      block_mins: toMins(block_hhmm),
+      air_mins:   toMins(air_hhmm),
+      debug_sample: raw.slice(0, 800)
+    };
+
+    return { statusCode: 200, body: JSON.stringify(data) };
+  } catch (err) {
+    console.error("parse-ocr error", err);
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
-};
+}

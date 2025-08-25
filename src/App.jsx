@@ -8,7 +8,7 @@ import DelayPage from "./pages/Delay";
 import TimeTools from "@/pages/TimeTools";
 import DisclaimerPage from "@/pages/DisclaimerPage";
 import FlightComputerPage from "@/modules/flight-computer";
-
+import OcrTestPage from "./pages/OcrTestPage";
 import QuizPage from "./pages/QuizPage";
 import QuizSelector from "./pages/QuizSelector";
 import SubjectSelector from "./pages/SubjectSelector";
@@ -39,6 +39,8 @@ export default function App() {
 
       {/* OCR routes */}
       <Route path="/ocr" element={<MainLayout><OcrPage /></MainLayout>} />
+      <Route path="/ocr-test" element={<OcrTestPage />} />
+
       {/* Print biasanya tanpa layout agar bersih untuk PDF */}
       <Route path="/print" element={<LogbookPrint />} />
 

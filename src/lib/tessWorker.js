@@ -1,31 +1,42 @@
-import { createWorker } from "tesseract.js";
+// src/lib/tessCdnWorker.js
+// Pastikan di public/index.html ada:
+// <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
 
 let workerPromise = null;
 
-export async function getTessWorker() {
+export async function getWorker() {
   if (!workerPromise) {
     workerPromise = (async () => {
-      const w = await createWorker({
-        logger: () => {},
-        workerPath: "https://unpkg.com/tesseract.js@5/dist/worker.min.js",
-        langPath: "https://unpkg.com/tesseract.js-core@5.0.2/lang/",
-        corePath: "https://unpkg.com/tesseract.js-core@5.0.2/tesseract-core.wasm.js",
+      if (!window.Tesseract) throw new Error("Tesseract global belum termuat");
+
+      const worker = await window.Tesseract.createWorker({
+        workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/worker.min.js",
+        corePath:   "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.0.0/tesseract-core.wasm.js",
+        langPath:   "https://tessdata.projectnaptha.com/4.0.0_fast/",
+        logger: null, // disable log biar tidak error cloning
       });
-      await w.loadLanguage("eng");
-      await w.initialize("eng");
-      await w.setParameters({
+
+      await worker.loadLanguage("eng");
+      await worker.initialize("eng");
+      await worker.setParameters({
         preserve_interword_spaces: "1",
-        tessedit_char_whitelist:
-          "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-.() \n",
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-.() \n",
+        tessedit_pageseg_mode: "6",
       });
-      return w;
+      return worker;
     })();
   }
   return workerPromise;
 }
 
-export async function recognizeWith(worker, dataUrl, psm = 6) {
+export async function recognizePSM(image, psm = 6) {
+  const worker = await getWorker();
   await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
-  const { data: { text } } = await worker.recognize(dataUrl);
+  const { data: { text } } = await worker.recognize(image);
   return text;
+}
+
+// Optional: pre-load saat startup
+export async function warmup() {
+  await getWorker();
 }

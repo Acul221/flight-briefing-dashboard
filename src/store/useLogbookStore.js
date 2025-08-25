@@ -10,8 +10,20 @@ const toHHMM = (mins) => {
 
 export const useLogbookStore = create((set, get) => ({
   entries: [],
+
+  // Tambah satu entri manual
   addEntry: (e) => set((s) => ({ entries: [e, ...s.entries] })),
+
+  // Tambah multiple entri (hasil OCR parser)
+  addEntries: (newEntries) =>
+    set((state) => ({
+      entries: [...newEntries, ...state.entries],
+    })),
+
+  // Hapus semua entri
   clear: () => set({ entries: [] }),
+
+  // Export ke CSV
   exportCSV: () => {
     const rows = [
       [
@@ -43,7 +55,16 @@ export const useLogbookStore = create((set, get) => ({
         e.remarks || "",
       ]),
     ];
-    const csv = rows.map((r) => r.map((c) => `"${(c ?? "").toString().replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = rows
+      .map((r) =>
+        r
+          .map((c) =>
+            `"${(c ?? "").toString().replace(/"/g, '""')}"`
+          )
+          .join(",")
+      )
+      .join("\n");
+
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
