@@ -19,22 +19,10 @@ exports.handler = async function (event) {
       properties: {
         // === ID & Question ===
         ID: {
-          title: [
-            {
-              text: {
-                content: body.id,
-              },
-            },
-          ],
+          title: [{ text: { content: body.id } }],
         },
         Question: {
-          rich_text: [
-            {
-              text: {
-                content: body.question || "",
-              },
-            },
-          ],
+          rich_text: [{ text: { content: body.question || "" } }],
         },
 
         // === Question Image (url) ===
@@ -57,13 +45,7 @@ exports.handler = async function (event) {
           select: { name: body.level || "Easy" },
         },
         Source: {
-          rich_text: [
-            {
-              text: {
-                content: body.source || "",
-              },
-            },
-          ],
+          rich_text: [{ text: { content: body.source || "" } }],
         },
         Category: {
           select: { name: body.category || "general" },
@@ -72,22 +54,10 @@ exports.handler = async function (event) {
         // === Choices (A-D), Explanations, Correct flag, Images ===
         ...["A", "B", "C", "D"].reduce((acc, letter, i) => {
           acc[`Choice ${letter}`] = {
-            rich_text: [
-              {
-                text: {
-                  content: body.choices?.[i] || "",
-                },
-              },
-            ],
+            rich_text: [{ text: { content: body.choices?.[i] || "" } }],
           };
           acc[`Explanation ${letter}`] = {
-            rich_text: [
-              {
-                text: {
-                  content: body.explanations?.[i] || "",
-                },
-              },
-            ],
+            rich_text: [{ text: { content: body.explanations?.[i] || "" } }],
           };
           acc[`isCorrect ${letter}`] = {
             checkbox: body.correctIndex === i,
@@ -105,10 +75,14 @@ exports.handler = async function (event) {
       body: JSON.stringify({ success: true, pageId: response.id }),
     };
   } catch (error) {
-    console.error("Submit error:", error);
+    // 🔎 Logging detail biar gampang debug
+    console.error("Submit error details:", JSON.stringify(error, null, 2));
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      body: JSON.stringify({
+        error: error.message,
+        details: error,
+      }),
     };
   }
 };
