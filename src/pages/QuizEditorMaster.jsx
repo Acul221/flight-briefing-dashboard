@@ -1,25 +1,14 @@
-// src/pages/QuizEditorMaster.jsx
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { CATEGORIES } from "../constants/categories";
-import RawTextImporter from "../components/quiz/RawTextImporter"; // importer siap pakai
-
-function isValidHttpUrl(value) {
-  if (!value) return true; // kosong = boleh
-  try {
-    const u = new URL(value);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
+import RawTextImporter from "../components/quiz/RawTextImporter";
 
 export default function QuizEditorMaster() {
   const [formData, setFormData] = useState({
     id: "",
     question: "",
-    questionImage: "",                // NEW
+    questionImage: "",
     choices: ["", "", "", ""],
-    choiceImages: ["", "", "", ""],   // NEW
+    choiceImages: ["", "", "", ""],
     correctIndex: null,
     explanations: ["", "", "", ""],
     tags: "",
@@ -32,7 +21,7 @@ export default function QuizEditorMaster() {
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // --- Auto-isi dari parser (RawTextImporter) ---
+  // === Import dari RawTextImporter ===
   const importFromRaw = (q) => {
     const get = (L) =>
       q.choices.find((c) => c.label === L) || {
@@ -41,22 +30,20 @@ export default function QuizEditorMaster() {
         isCorrect: false,
         image: "",
       };
-    const A = get("A"), B = get("B"), C = get("C"), D = get("D");
-
-    const choices = [A.text, B.text, C.text, D.text];
-    const explanations = [A.explanation, B.explanation, C.explanation, D.explanation];
-    const choiceImages = [A.image || "", B.image || "", C.image || "", D.image || ""];
-    const correctIndex = [A, B, C, D].findIndex((x) => x.isCorrect);
+    const A = get("A"),
+      B = get("B"),
+      C = get("C"),
+      D = get("D");
 
     setFormData((prev) => ({
       ...prev,
       id: q.id || prev.id,
       question: q.question || prev.question,
-      questionImage: q.questionImage || prev.questionImage || "",
-      choices,
-      choiceImages,
-      explanations,
-      correctIndex: correctIndex >= 0 ? correctIndex : prev.correctIndex,
+      questionImage: q.questionImage || prev.questionImage,
+      choices: [A.text, B.text, C.text, D.text],
+      choiceImages: [A.image, B.image, C.image, D.image],
+      explanations: [A.explanation, B.explanation, C.explanation, D.explanation],
+      correctIndex: [A, B, C, D].findIndex((x) => x.isCorrect),
       tags: (q.tags || []).join(", "),
       level: q.level || prev.level,
       source: q.source || prev.source,
@@ -64,7 +51,7 @@ export default function QuizEditorMaster() {
       aircraft: q.aircraft || prev.aircraft,
     }));
 
-    setShowPreview(true); // tampilkan preview otomatis
+    setShowPreview(true);
   };
 
   const resetForm = () => {
@@ -86,9 +73,8 @@ export default function QuizEditorMaster() {
     setShowSuccess(false);
   };
 
-  const handleChange = (field, value) => {
+  const handleChange = (field, value) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
 
   const handleChoiceChange = (index, value) => {
     const updated = [...formData.choices];
@@ -108,22 +94,14 @@ export default function QuizEditorMaster() {
     setFormData((prev) => ({ ...prev, explanations: updatedExp }));
   };
 
-  const currentCategory = useMemo(
-    () => CATEGORIES.find((cat) => cat.value === formData.category),
-    [formData.category]
-  );
-  const aircraftRequired = currentCategory?.requiresAircraft;
-
-  const imageUrlErrors = useMemo(() => {
-    const questionOk = isValidHttpUrl(formData.questionImage);
-    const choiceOk = formData.choiceImages.map(isValidHttpUrl);
-    return { question: !questionOk, choices: choiceOk.map((ok) => !ok) };
-  }, [formData.questionImage, formData.choiceImages]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validasi minimal
+    const currentCategory = CATEGORIES.find(
+      (cat) => cat.value === formData.category
+    );
+    const aircraftRequired = currentCategory?.requiresAircraft;
+
     if (
       !formData.id ||
       !formData.question ||
@@ -134,13 +112,7 @@ export default function QuizEditorMaster() {
       alert("Please complete all required fields.");
       return;
     }
-    // Validasi URL gambar (jika diisi)
-    if (imageUrlErrors.question || imageUrlErrors.choices.some(Boolean)) {
-      alert("One or more image URLs are invalid. Please use http(s) URLs.");
-      return;
-    }
 
-    // Siapkan payload
     const submissionData = {
       ...formData,
       tags: formData.tags
@@ -164,10 +136,9 @@ export default function QuizEditorMaster() {
 
   return (
     <div className="max-w-xl mx-auto p-4 space-y-6 bg-white dark:bg-gray-900 text-gray-800 dark:text-white">
-      {/* ===== Paste Raw Text Mode ===== */}
+      {/* Importer Raw Text */}
       <RawTextImporter onImport={importFromRaw} />
 
-      {/* ===== Form Manual ===== */}
       {!showSuccess ? (
         <form
           onSubmit={(e) => {
@@ -178,6 +149,7 @@ export default function QuizEditorMaster() {
         >
           <h2 className="text-xl font-bold">Add Quiz Question</h2>
 
+          {/* ID */}
           <input
             type="text"
             placeholder="ID"
@@ -187,6 +159,7 @@ export default function QuizEditorMaster() {
             required
           />
 
+          {/* Question */}
           <textarea
             placeholder="Question"
             value={formData.question}
@@ -195,32 +168,19 @@ export default function QuizEditorMaster() {
             required
           />
 
-          {/* NEW: Question Image URL + preview */}
-          <div className="space-y-2">
-            <input
-              type="url"
-              placeholder="Question Image URL (optional)"
-              value={formData.questionImage}
-              onChange={(e) => handleChange("questionImage", e.target.value)}
-              className={`w-full p-2 border rounded ${imageUrlErrors.question ? "border-red-500" : ""}`}
-            />
-            {imageUrlErrors.question && (
-              <p className="text-xs text-red-600">Invalid URL. Use http(s) only.</p>
-            )}
-            {formData.questionImage && isValidHttpUrl(formData.questionImage) && (
-              <img
-                src={formData.questionImage}
-                alt="Question"
-                className="max-h-44 rounded border"
-                loading="lazy"
-              />
-            )}
-          </div>
+          {/* Question Image */}
+          <input
+            type="url"
+            placeholder="Question Image URL (optional)"
+            value={formData.questionImage}
+            onChange={(e) => handleChange("questionImage", e.target.value)}
+            className="w-full p-2 border rounded"
+          />
 
+          {/* Choices */}
           {["A", "B", "C", "D"].map((label, i) => (
             <div key={i} className="space-y-1">
               <label className="block font-semibold">Choice {label}</label>
-
               <input
                 type="text"
                 value={formData.choices[i]}
@@ -228,27 +188,13 @@ export default function QuizEditorMaster() {
                 className="w-full p-2 border rounded"
                 required
               />
-
-              {/* NEW: Image URL per choice + preview */}
               <input
                 type="url"
                 placeholder={`Image URL for ${label} (optional)`}
-                value={formData.choiceImages[i] || ""}
+                value={formData.choiceImages[i]}
                 onChange={(e) => handleChoiceImageChange(i, e.target.value)}
-                className={`w-full p-2 border rounded ${imageUrlErrors.choices[i] ? "border-red-500" : ""}`}
+                className="w-full p-2 border rounded"
               />
-              {imageUrlErrors.choices[i] && (
-                <p className="text-xs text-red-600">Invalid URL. Use http(s) only.</p>
-              )}
-              {formData.choiceImages[i] && isValidHttpUrl(formData.choiceImages[i]) && (
-                <img
-                  src={formData.choiceImages[i]}
-                  alt={`Choice ${label}`}
-                  className="max-h-32 rounded border"
-                  loading="lazy"
-                />
-              )}
-
               <label className="inline-flex items-center gap-2">
                 <input
                   type="radio"
@@ -258,7 +204,6 @@ export default function QuizEditorMaster() {
                 />
                 Mark as correct
               </label>
-
               <textarea
                 placeholder="Explanation"
                 value={formData.explanations[i]}
@@ -268,6 +213,7 @@ export default function QuizEditorMaster() {
             </div>
           ))}
 
+          {/* Aircraft */}
           <select
             value={formData.aircraft}
             onChange={(e) => handleChange("aircraft", e.target.value)}
@@ -279,6 +225,7 @@ export default function QuizEditorMaster() {
             <option value="b737">B737</option>
           </select>
 
+          {/* Category */}
           <select
             value={formData.category}
             onChange={(e) => handleChange("category", e.target.value)}
@@ -292,6 +239,7 @@ export default function QuizEditorMaster() {
             ))}
           </select>
 
+          {/* Tags */}
           <input
             type="text"
             placeholder="Tags (comma separated)"
@@ -299,6 +247,8 @@ export default function QuizEditorMaster() {
             onChange={(e) => handleChange("tags", e.target.value)}
             className="w-full p-2 border rounded"
           />
+
+          {/* Source */}
           <input
             type="text"
             placeholder="Source"
@@ -307,6 +257,7 @@ export default function QuizEditorMaster() {
             className="w-full p-2 border rounded"
           />
 
+          {/* Level */}
           <select
             value={formData.level}
             onChange={(e) => handleChange("level", e.target.value)}
@@ -318,23 +269,12 @@ export default function QuizEditorMaster() {
             <option value="Hard">Hard</option>
           </select>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Preview
-            </button>
-            {showPreview && (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Submit to Master DB
-              </button>
-            )}
-          </div>
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Preview
+          </button>
         </form>
       ) : (
         <div className="text-center space-y-4">
@@ -350,52 +290,65 @@ export default function QuizEditorMaster() {
         </div>
       )}
 
-      {/* PREVIEW (read-only), termasuk gambar */}
+      {/* Preview */}
       {showPreview && !showSuccess && (
         <div className="border-t pt-6">
           <h3 className="text-lg font-semibold mb-2">Preview</h3>
-
-          <p><strong>ID:</strong> {formData.id}</p>
-          <p><strong>Question:</strong> {formData.question}</p>
-
-          {formData.questionImage && isValidHttpUrl(formData.questionImage) && (
-            <div className="mb-3">
-              <img
-                src={formData.questionImage}
-                alt="Question"
-                className="max-h-44 rounded border"
-              />
-            </div>
+          <p>
+            <strong>ID:</strong> {formData.id}
+          </p>
+          <p>
+            <strong>Question:</strong> {formData.question}
+          </p>
+          {formData.questionImage && (
+            <img
+              src={formData.questionImage}
+              alt="Question"
+              className="max-h-60 rounded mb-4 border"
+            />
           )}
-
           {formData.choices.map((choice, i) => (
-            <div key={i} className="mb-3">
+            <div key={i} className="mb-1">
               <strong>{String.fromCharCode(65 + i)}.</strong> {choice}
+              {formData.choiceImages[i] && (
+                <img
+                  src={formData.choiceImages[i]}
+                  alt={`Choice ${String.fromCharCode(65 + i)}`}
+                  className="max-h-32 rounded my-2 border"
+                />
+              )}
               {formData.correctIndex === i && (
                 <span className="ml-2 text-green-600 dark:text-green-400 italic">
                   (Correct Answer)
                 </span>
-              )}
-              {formData.choiceImages[i] && isValidHttpUrl(formData.choiceImages[i]) && (
-                <div className="mt-1">
-                  <img
-                    src={formData.choiceImages[i]}
-                    alt={`Choice ${String.fromCharCode(65 + i)}`}
-                    className="max-h-32 rounded border"
-                  />
-                </div>
               )}
               <div className="text-sm text-gray-600 dark:text-gray-300 italic">
                 {formData.explanations[i]}
               </div>
             </div>
           ))}
+          <p>
+            <strong>Aircraft:</strong> {formData.aircraft}
+          </p>
+          <p>
+            <strong>Category:</strong> {formData.category}
+          </p>
+          <p>
+            <strong>Tags:</strong> {formData.tags}
+          </p>
+          <p>
+            <strong>Level:</strong> {formData.level}
+          </p>
+          <p>
+            <strong>Source:</strong> {formData.source}
+          </p>
 
-          <p><strong>Aircraft:</strong> {formData.aircraft}</p>
-          <p><strong>Category:</strong> {formData.category}</p>
-          <p><strong>Tags:</strong> {formData.tags}</p>
-          <p><strong>Level:</strong> {formData.level}</p>
-          <p><strong>Source:</strong> {formData.source}</p>
+          <button
+            onClick={handleSubmit}
+            className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            Submit to Master DB
+          </button>
         </div>
       )}
     </div>
