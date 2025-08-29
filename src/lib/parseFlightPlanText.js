@@ -31,6 +31,32 @@ function findLine(lines, keywords) {
   );
 }
 
+// 🔧 Convert jam ke menit
+function toMins(t) {
+  if (!t) return null;
+  const [h, m] = cleanTime(t).split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+// 🔧 Hitung selisih menit (dengan rollover midnight)
+function diffMins(start, end) {
+  const [sh, sm] = cleanTime(start).split(":").map(Number);
+  const [eh, em] = cleanTime(end).split(":").map(Number);
+  if (
+    !Number.isFinite(sh) ||
+    !Number.isFinite(sm) ||
+    !Number.isFinite(eh) ||
+    !Number.isFinite(em)
+  )
+    return null;
+
+  let mins = eh * 60 + em - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60;
+  return mins;
+}
+
+// 🔧 Main parser
 export function parseFlightPlanText(raw) {
   if (!raw) return [];
 
@@ -148,30 +174,6 @@ export function parseFlightPlanText(raw) {
     }
   }
 
-  // ✅ Hanya return kalau DEP/ARR ada
+  // ✅ Only return if DEP & ARR exist
   return entry.from && entry.to ? [entry] : [];
-}
-
-// Helpers
-function toMins(t) {
-  if (!t) return null;
-  const [h, m] = cleanTime(t).split(":").map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return h * 60 + m;
-}
-
-function diffMins(start, end) {
-  const [sh, sm] = cleanTime(start).split(":").map(Number);
-  const [eh, em] = cleanTime(end).split(":").map(Number);
-  if (
-    !Number.isFinite(sh) ||
-    !Number.isFinite(sm) ||
-    !Number.isFinite(eh) ||
-    !Number.isFinite(em)
-  )
-    return null;
-
-  let mins = eh * 60 + em - (sh * 60 + sm);
-  if (mins < 0) mins += 24 * 60; // rollover midnight
-  return mins;
 }

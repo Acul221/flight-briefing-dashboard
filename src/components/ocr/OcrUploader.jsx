@@ -1,49 +1,62 @@
 import { useRef, useState, useEffect } from "react";
 import { warmup, getWorker, recognizePSM } from "../../lib/tessCdnWorker";
-import { normalizeText } from "../../lib/normalizeText";
+import roiConfig from "../../config/roiConfig";
 
-// 🟢 Preprocess image: resize + grayscale + adaptive threshold
-function preprocessImage(img, width = 1200) {
-  const scale = width / img.naturalWidth;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = Math.floor(img.naturalHeight * scale);
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+// Crop relatif
+function cropRel(img, { x, y, w, h }, scale = 1.0, offset = { dx: 0, dy: 0 }) {
+  const c = document.createElement("canvas");
+  const cw = Math.max(1, Math.floor(img.naturalWidth * w * scale));
+  const ch = Math.max(1, Math.floor(img.naturalHeight * h * scale));
+  const sx = Math.max(0, Math.floor(img.naturalWidth * (x + offset.dx)));
+  const sy = Math.max(0, Math.floor(img.naturalHeight * (y + offset.dy)));
+  const sw = Math.floor(img.naturalWidth * w);
+  const sh = Math.floor(img.naturalHeight * h);
 
-  // resize
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  c.width = cw;
+  c.height = ch;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
 
-  // get image data
-  const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  let total = 0;
-  for (let i = 0; i < im.data.length; i += 4) {
-    const g =
-      0.299 * im.data[i] +
-      0.587 * im.data[i + 1] +
-      0.114 * im.data[i + 2];
-    total += g;
-  }
-  const avg = total / (im.data.length / 4);
-
-  // adaptive threshold
-  for (let i = 0; i < im.data.length; i += 4) {
-    const g =
-      0.299 * im.data[i] +
-      0.587 * im.data[i + 1] +
-      0.114 * im.data[i + 2];
-    const v = g > avg * 0.9 ? 255 : 0;
-    im.data[i] = im.data[i + 1] = im.data[i + 2] = v;
-  }
-  ctx.putImageData(im, 0, 0);
-
-  return canvas.toDataURL("image/png");
+  return c.toDataURL("image/png");
 }
 
-// 🟢 Score OCR result based on keyword presence
+// Score teks berdasarkan keyword
 function scoreText(text) {
-  const keywords = ["DEP", "ARR", "BLK", "BLOCK", "LDNG", "TKOF", "AIR", "TIME"];
+  if (!text) return 0;
+  const keywords = ["DEP", "ARR", "STD", "STA", "BLOCK", "AIR", "LDG", "TKOF"];
   const S = text.toUpperCase();
   return keywords.reduce((acc, k) => acc + (S.includes(k) ? 1 : 0), 0);
+}
+
+// OCR dengan auto-adjust
+async function bestOCR(img, roi, psm = 6) {
+  const scales = [1.0, 1.1, 1.2];
+  const offsets = [
+    { dx: 0, dy: 0 },
+    { dx: -0.01, dy: 0 },
+    { dx: 0.01, dy: 0 },
+    { dx: 0, dy: -0.01 },
+    { dx: 0, dy: 0.01 },
+  ];
+
+  let best = { text: "", score: -1 };
+  for (const s of scales) {
+    for (const o of offsets) {
+      try {
+        const roiImg = cropRel(img, roi, s, o);
+        const text = await recognizePSM(roiImg, psm, {
+          tessedit_char_whitelist:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
+        });
+        const sc = scoreText(text) + text.length * 0.01;
+        if (sc > best.score) best = { text, score: sc };
+      } catch (err) {
+        console.warn("ROI OCR failed:", err);
+      }
+    }
+  }
+  return best.text.trim();
 }
 
 export default function OcrUploader({ onFileSelected }) {
@@ -68,57 +81,29 @@ export default function OcrUploader({ onFileSelected }) {
       await getWorker();
       const img = new Image();
       img.onload = async () => {
-        console.log("📷 Image loaded, preprocessing & OCR…", f.name);
+        console.log("📷 Image loaded:", f.name);
         const t0 = performance.now();
 
         try {
-          // Preprocess
-          const processed = preprocessImage(img);
-
-          // Run multi-pass OCR
-          const text6 = normalizeText(
-            await recognizePSM(processed, 6, {
-              tessedit_char_whitelist:
-                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
-            })
-          );
-          const text7 = normalizeText(
-            await recognizePSM(processed, 7, {
-              tessedit_char_whitelist:
-                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
-            })
-          );
-
-          // Pick best between 6 and 7
-          let best =
-            scoreText(text7) > scoreText(text6)
-              ? { text: text7, mode: "PSM 7", score: scoreText(text7) }
-              : { text: text6, mode: "PSM 6", score: scoreText(text6) };
-
-          // If too weak → fallback to PSM 11
-          if (best.score < 2) {
-            console.log("⚠️ Low score on PSM 6/7, running fallback PSM 11…");
-            const text11 = normalizeText(
-              await recognizePSM(processed, 11, {
-                tessedit_char_whitelist:
-                  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
-              })
-            );
-            const score11 = scoreText(text11);
-            if (score11 > best.score) {
-              best = { text: text11, mode: "PSM 11 (fallback)", score: score11 };
-            }
+          // Loop semua ROI dari config
+          const parts = {};
+          for (const [key, roi] of Object.entries(roiConfig)) {
+            parts[key] = await bestOCR(img, roi, 6);
           }
 
-          console.log(
-            `📄 BEST OCR (${best.mode}, score=${best.score}):`,
-            best.text.slice(0, 500)
-          );
-          setDebug(best.text.slice(0, 1000));
+          let raw = Object.values(parts).filter(Boolean).join("\n");
 
-          // Pass to parent
+          // fallback: full OCR kalau hasil terlalu pendek
+          if (raw.length < 40) {
+            console.log("⚠️ ROI result weak → running full OCR fallback…");
+            raw = await recognizePSM(img.src, 6);
+          }
+
+          console.log("📄 RAW OCR TEXT:\n", raw);
+          setDebug(raw.slice(0, 1000));
+
           if (onFileSelected) {
-            onFileSelected(f, best.text);
+            onFileSelected(f, raw);
           }
         } catch (err) {
           console.error("❌ OCR failed:", err);
