@@ -1,14 +1,16 @@
+// src/pages/QuizEditorMaster.jsx
 import React, { useState } from "react";
 import { CATEGORIES } from "../constants/categories";
 import RawTextImporter from "../components/quiz/RawTextImporter";
+import { uploadImage } from "../lib/uploadImage"; // <-- helper Supabase
 
 export default function QuizEditorMaster() {
   const [formData, setFormData] = useState({
     id: "",
     question: "",
-    questionImage: "",
+    questionImage: "",                // URL
     choices: ["", "", "", ""],
-    choiceImages: ["", "", "", ""],
+    choiceImages: ["", "", "", ""],   // URL per pilihan
     correctIndex: null,
     explanations: ["", "", "", ""],
     tags: "",
@@ -21,7 +23,11 @@ export default function QuizEditorMaster() {
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // === Import dari RawTextImporter ===
+  // state kecil untuk indikator upload per field
+  const [isUploadingQuestionImg, setIsUploadingQuestionImg] = useState(false);
+  const [isUploadingChoiceImg, setIsUploadingChoiceImg] = useState([false, false, false, false]);
+
+  // ======== Import dari RawTextImporter (auto-fill) ========
   const importFromRaw = (q) => {
     const get = (L) =>
       q.choices.find((c) => c.label === L) || {
@@ -30,20 +36,21 @@ export default function QuizEditorMaster() {
         isCorrect: false,
         image: "",
       };
-    const A = get("A"),
-      B = get("B"),
-      C = get("C"),
-      D = get("D");
+
+    const A = get("A"), B = get("B"), C = get("C"), D = get("D");
 
     setFormData((prev) => ({
       ...prev,
       id: q.id || prev.id,
       question: q.question || prev.question,
-      questionImage: q.questionImage || prev.questionImage,
+      questionImage: q.questionImage || prev.questionImage || "",
       choices: [A.text, B.text, C.text, D.text],
-      choiceImages: [A.image, B.image, C.image, D.image],
+      choiceImages: [A.image || "", B.image || "", C.image || "", D.image || ""],
       explanations: [A.explanation, B.explanation, C.explanation, D.explanation],
-      correctIndex: [A, B, C, D].findIndex((x) => x.isCorrect),
+      correctIndex:
+        [A, B, C, D].findIndex((x) => x.isCorrect) >= 0
+          ? [A, B, C, D].findIndex((x) => x.isCorrect)
+          : prev.correctIndex,
       tags: (q.tags || []).join(", "),
       level: q.level || prev.level,
       source: q.source || prev.source,
@@ -52,6 +59,28 @@ export default function QuizEditorMaster() {
     }));
 
     setShowPreview(true);
+  };
+
+  // ======== Helpers ========
+  const handleChange = (field, value) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+  const handleChoiceChange = (index, value) => {
+    const updated = [...formData.choices];
+    updated[index] = value;
+    setFormData((prev) => ({ ...prev, choices: updated }));
+  };
+
+  const handleChoiceImageChange = (index, value) => {
+    const updated = [...formData.choiceImages];
+    updated[index] = value;
+    setFormData((prev) => ({ ...prev, choiceImages: updated }));
+  };
+
+  const handleExplanationChange = (index, value) => {
+    const updated = [...formData.explanations];
+    updated[index] = value;
+    setFormData((prev) => ({ ...prev, explanations: updated }));
   };
 
   const resetForm = () => {
@@ -73,27 +102,39 @@ export default function QuizEditorMaster() {
     setShowSuccess(false);
   };
 
-  const handleChange = (field, value) =>
-    setFormData((prev) => ({ ...prev, [field]: value }));
-
-  const handleChoiceChange = (index, value) => {
-    const updated = [...formData.choices];
-    updated[index] = value;
-    setFormData((prev) => ({ ...prev, choices: updated }));
+  // ======== Upload Handlers ========
+  const uploadQuestionImage = async (file) => {
+    try {
+      setIsUploadingQuestionImg(true);
+      const url = await uploadImage(file, "questions"); // folder "questions"
+      handleChange("questionImage", url);
+    } catch (e) {
+      console.error(e);
+      alert("Upload question image failed.");
+    } finally {
+      setIsUploadingQuestionImg(false);
+    }
   };
 
-  const handleChoiceImageChange = (index, value) => {
-    const updated = [...formData.choiceImages];
-    updated[index] = value;
-    setFormData((prev) => ({ ...prev, choiceImages: updated }));
+  const uploadChoiceImage = async (i, file) => {
+    try {
+      const flags = [...isUploadingChoiceImg];
+      flags[i] = true;
+      setIsUploadingChoiceImg(flags);
+
+      const url = await uploadImage(file, "choices"); // folder "choices"
+      handleChoiceImageChange(i, url);
+    } catch (e) {
+      console.error(e);
+      alert(`Upload image for choice ${String.fromCharCode(65 + i)} failed.`);
+    } finally {
+      const flags2 = [...isUploadingChoiceImg];
+      flags2[i] = false;
+      setIsUploadingChoiceImg(flags2);
+    }
   };
 
-  const handleExplanationChange = (index, value) => {
-    const updatedExp = [...formData.explanations];
-    updatedExp[index] = value;
-    setFormData((prev) => ({ ...prev, explanations: updatedExp }));
-  };
-
+  // ======== Submit to Notion ========
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -121,24 +162,32 @@ export default function QuizEditorMaster() {
         .filter((t) => t),
     };
 
-    const response = await fetch("/.netlify/functions/submit-question", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(submissionData),
-    });
+    try {
+      const response = await fetch("/.netlify/functions/submit-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submissionData),
+      });
 
-    if (response.ok) {
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        console.error("Submission error:", err);
+        alert(`Submission failed.\n${err?.error || ""}`);
+        return;
+      }
       setShowSuccess(true);
-    } else {
-      alert("Submission failed.");
+    } catch (err) {
+      console.error(err);
+      alert("Submission failed (network).");
     }
   };
 
   return (
-    <div className="max-w-xl mx-auto p-4 space-y-6 bg-white dark:bg-gray-900 text-gray-800 dark:text-white">
-      {/* Importer Raw Text */}
+    <div className="max-w-3xl mx-auto p-4 space-y-6 bg-white dark:bg-gray-900 text-gray-800 dark:text-white">
+      {/* Raw Importer */}
       <RawTextImporter onImport={importFromRaw} />
 
+      {/* Form */}
       {!showSuccess ? (
         <form
           onSubmit={(e) => {
@@ -168,19 +217,31 @@ export default function QuizEditorMaster() {
             required
           />
 
-          {/* Question Image */}
-          <input
-            type="url"
-            placeholder="Question Image URL (optional)"
-            value={formData.questionImage}
-            onChange={(e) => handleChange("questionImage", e.target.value)}
-            className="w-full p-2 border rounded"
-          />
+          {/* Question Image: file upload + url (opsional manual) */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Question Image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => e.target.files?.[0] && uploadQuestionImage(e.target.files[0])}
+            />
+            {isUploadingQuestionImg && (
+              <p className="text-xs italic text-gray-500">Uploading...</p>
+            )}
+            <input
+              type="url"
+              placeholder="Question Image URL (optional)"
+              value={formData.questionImage}
+              onChange={(e) => handleChange("questionImage", e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
 
           {/* Choices */}
           {["A", "B", "C", "D"].map((label, i) => (
-            <div key={i} className="space-y-1">
+            <div key={i} className="space-y-2 border rounded p-3">
               <label className="block font-semibold">Choice {label}</label>
+
               <input
                 type="text"
                 value={formData.choices[i]}
@@ -188,13 +249,29 @@ export default function QuizEditorMaster() {
                 className="w-full p-2 border rounded"
                 required
               />
-              <input
-                type="url"
-                placeholder={`Image URL for ${label} (optional)`}
-                value={formData.choiceImages[i]}
-                onChange={(e) => handleChoiceImageChange(i, e.target.value)}
-                className="w-full p-2 border rounded"
-              />
+
+              {/* Choice Image Upload + URL */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => e.target.files?.[0] && uploadChoiceImage(i, e.target.files[0])}
+                  />
+                  {isUploadingChoiceImg[i] && (
+                    <span className="text-xs italic text-gray-500">Uploading...</span>
+                  )}
+                </div>
+
+                <input
+                  type="url"
+                  placeholder={`Image URL for ${label} (optional)`}
+                  value={formData.choiceImages[i]}
+                  onChange={(e) => handleChoiceImageChange(i, e.target.value)}
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+
               <label className="inline-flex items-center gap-2">
                 <input
                   type="radio"
@@ -204,11 +281,12 @@ export default function QuizEditorMaster() {
                 />
                 Mark as correct
               </label>
+
               <textarea
                 placeholder="Explanation"
                 value={formData.explanations[i]}
                 onChange={(e) => handleExplanationChange(i, e.target.value)}
-                className="w-full p-2 border rounded mt-1"
+                className="w-full p-2 border rounded"
               />
             </div>
           ))}
@@ -239,7 +317,7 @@ export default function QuizEditorMaster() {
             ))}
           </select>
 
-          {/* Tags */}
+          {/* Tags / Source / Level */}
           <input
             type="text"
             placeholder="Tags (comma separated)"
@@ -248,7 +326,6 @@ export default function QuizEditorMaster() {
             className="w-full p-2 border rounded"
           />
 
-          {/* Source */}
           <input
             type="text"
             placeholder="Source"
@@ -257,7 +334,6 @@ export default function QuizEditorMaster() {
             className="w-full p-2 border rounded"
           />
 
-          {/* Level */}
           <select
             value={formData.level}
             onChange={(e) => handleChange("level", e.target.value)}
@@ -294,12 +370,10 @@ export default function QuizEditorMaster() {
       {showPreview && !showSuccess && (
         <div className="border-t pt-6">
           <h3 className="text-lg font-semibold mb-2">Preview</h3>
-          <p>
-            <strong>ID:</strong> {formData.id}
-          </p>
-          <p>
-            <strong>Question:</strong> {formData.question}
-          </p>
+
+          <p><strong>ID:</strong> {formData.id}</p>
+          <p><strong>Question:</strong> {formData.question}</p>
+
           {formData.questionImage && (
             <img
               src={formData.questionImage}
@@ -307,8 +381,9 @@ export default function QuizEditorMaster() {
               className="max-h-60 rounded mb-4 border"
             />
           )}
+
           {formData.choices.map((choice, i) => (
-            <div key={i} className="mb-1">
+            <div key={i} className="mb-3">
               <strong>{String.fromCharCode(65 + i)}.</strong> {choice}
               {formData.choiceImages[i] && (
                 <img
@@ -327,21 +402,12 @@ export default function QuizEditorMaster() {
               </div>
             </div>
           ))}
-          <p>
-            <strong>Aircraft:</strong> {formData.aircraft}
-          </p>
-          <p>
-            <strong>Category:</strong> {formData.category}
-          </p>
-          <p>
-            <strong>Tags:</strong> {formData.tags}
-          </p>
-          <p>
-            <strong>Level:</strong> {formData.level}
-          </p>
-          <p>
-            <strong>Source:</strong> {formData.source}
-          </p>
+
+          <p><strong>Aircraft:</strong> {formData.aircraft}</p>
+          <p><strong>Category:</strong> {formData.category}</p>
+          <p><strong>Tags:</strong> {formData.tags}</p>
+          <p><strong>Level:</strong> {formData.level}</p>
+          <p><strong>Source:</strong> {formData.source}</p>
 
           <button
             onClick={handleSubmit}

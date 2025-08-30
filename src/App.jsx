@@ -1,51 +1,55 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Routes, Route } from "react-router-dom";
-
 import MainLayout from "./layouts/MainLayout";
-import DashboardPage from "./pages/DashboardPage";
-import SettingsPage from "./pages/SettingsPage";
-import DelayPage from "./pages/Delay";
-import TimeTools from "@/pages/TimeTools";
-import DisclaimerPage from "@/pages/DisclaimerPage";
-import FlightComputerPage from "@/modules/flight-computer";
-import OcrTestPage from "./pages/OcrTestPage";
-import QuizPage from "./pages/QuizPage";
-import QuizSelector from "./pages/QuizSelector";
-import SubjectSelector from "./pages/SubjectSelector";
-import QuizEditorMaster from "./pages/QuizEditorMaster";
 
-// OCR
-import OcrPage from "./pages/OcrPage";
-import LogbookPrint from "./pages/LogbookPrint";
+// ⏳ Lazy import pages
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const DelayPage = lazy(() => import("./pages/Delay"));
+const TimeTools = lazy(() => import("@/pages/TimeTools"));
+const DisclaimerPage = lazy(() => import("@/pages/DisclaimerPage"));
+const FlightComputerPage = lazy(() => import("@/modules/flight-computer"));
+const OcrTestPage = lazy(() => import("./pages/OcrTestPage"));
+const QuizPage = lazy(() => import("./pages/QuizPage"));
+const QuizSelector = lazy(() => import("./pages/QuizSelector"));
+const SubjectSelector = lazy(() => import("./pages/SubjectSelector"));
+const QuizEditorMaster = lazy(() => import("./pages/QuizEditorMaster"));
+const OcrPage = lazy(() => import("./pages/OcrPage"));
+const RoiTester = lazy(() => import("./pages/RoiTester"));
+const LogbookPrint = lazy(() => import("./pages/LogbookPrint"));
 
 export default function App() {
   return (
-    <Routes>
-      {/* Landing tanpa layout */}
-      <Route path="/" element={<DisclaimerPage />} />
+    // Suspense untuk fallback loading
+    <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
+      <Routes>
+        {/* Landing */}
+        <Route path="/" element={<DisclaimerPage />} />
 
-      {/* Quiz */}
-      <Route path="/quiz" element={<MainLayout><QuizSelector /></MainLayout>} />
-      <Route path="/quiz/:aircraft" element={<MainLayout><SubjectSelector /></MainLayout>} />
-      <Route path="/quiz/:aircraft/:subject" element={<MainLayout><QuizPage /></MainLayout>} />
-      <Route path="/quiz-editor" element={<MainLayout><QuizEditorMaster /></MainLayout>} />
+        {/* Quiz */}
+        <Route path="/quiz" element={<MainLayout><QuizSelector /></MainLayout>} />
+        <Route path="/quiz/:aircraft" element={<MainLayout><SubjectSelector /></MainLayout>} />
+        <Route path="/quiz/:aircraft/:subject" element={<MainLayout><QuizPage /></MainLayout>} />
+        <Route path="/quiz-editor" element={<MainLayout><QuizEditorMaster /></MainLayout>} />
 
-      {/* Pages with layout */}
-      <Route path="/dashboard" element={<MainLayout><DashboardPage /></MainLayout>} />
-      <Route path="/rac-delay" element={<MainLayout><DelayPage /></MainLayout>} />
-      <Route path="/settings" element={<MainLayout><SettingsPage /></MainLayout>} />
-      <Route path="/time-tools" element={<MainLayout><TimeTools /></MainLayout>} />
-      <Route path="/flight-computer" element={<MainLayout><FlightComputerPage /></MainLayout>} />
+        {/* Pages with layout */}
+        <Route path="/dashboard" element={<MainLayout><DashboardPage /></MainLayout>} />
+        <Route path="/rac-delay" element={<MainLayout><DelayPage /></MainLayout>} />
+        <Route path="/settings" element={<MainLayout><SettingsPage /></MainLayout>} />
+        <Route path="/time-tools" element={<MainLayout><TimeTools /></MainLayout>} />
+        <Route path="/flight-computer" element={<MainLayout><FlightComputerPage /></MainLayout>} />
 
-      {/* OCR routes */}
-      <Route path="/ocr" element={<MainLayout><OcrPage /></MainLayout>} />
-      <Route path="/ocr-test" element={<OcrTestPage />} />
+        {/* OCR routes */}
+        <Route path="/ocr" element={<MainLayout><OcrPage /></MainLayout>} />
+        <Route path="/ocr-test" element={<OcrTestPage />} />
+        <Route path="/roi-tester" element={<RoiTester />} />
 
-      {/* Print biasanya tanpa layout agar bersih untuk PDF */}
-      <Route path="/print" element={<LogbookPrint />} />
+        {/* Print view */}
+        <Route path="/print" element={<LogbookPrint />} />
 
-      {/* 404 fallback (opsional) */}
-      <Route path="*" element={<MainLayout><DashboardPage /></MainLayout>} />
-    </Routes>
+        {/* Fallback */}
+        <Route path="*" element={<MainLayout><DashboardPage /></MainLayout>} />
+      </Routes>
+    </Suspense>
   );
 }

@@ -1,3 +1,4 @@
+// src/pages/QuizPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -18,6 +19,7 @@ function QuizPage() {
   const [answers, setAnswers] = useState([]);
   const [isReview, setIsReview] = useState(false);
 
+  // === Fetch dari Netlify Function ===
   useEffect(() => {
     fetch(
       `/.netlify/functions/fetch-notion-questions?aircraft=${aircraft}&subject=${subject}`
@@ -25,7 +27,9 @@ function QuizPage() {
       .then((res) => res.json())
       .then((data) => {
         const shuffled =
-          subject === "all" ? [...data].sort(() => Math.random() - 0.5) : data;
+          subject === "all"
+            ? [...data].sort(() => Math.random() - 0.5)
+            : data;
 
         setQuestions(shuffled);
         setFilteredQuestions(shuffled);
@@ -42,6 +46,7 @@ function QuizPage() {
       .catch((err) => console.error("Fetch error:", err));
   }, [aircraft, subject]);
 
+  // === Filtering ===
   useEffect(() => {
     const filtered = questions.filter((q) => {
       const matchLevel =
@@ -59,6 +64,7 @@ function QuizPage() {
     setIsReview(false);
   }, [levelFilter, tagFilter, sourceFilter, questions]);
 
+  // === Answering ===
   const handleAnswer = (index) => {
     setSelected(index);
     setShowExplanation(true);
@@ -124,6 +130,7 @@ function QuizPage() {
 
       {isReview ? (
         <>
+          {/* === Review Mode === */}
           <div className="mb-8 border p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
             <h2 className="text-xl font-bold mb-2">Grade Report</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -154,20 +161,17 @@ function QuizPage() {
                   Question {idx + 1} of {filteredQuestions.length}:{" "}
                   {question.question}
                 </p>
-
-                {/* ✅ tampilkan gambar soal di review */}
                 {question.questionImage && (
                   <img
                     src={question.questionImage}
                     alt="Question"
-                    className="max-h-60 rounded mb-3 border"
+                    className="max-h-64 rounded border mb-3"
                   />
                 )}
-
                 {question.choices.map((choice, i) => {
                   const isCorrect = choice.isCorrect;
                   const isSelected = selectedIdx === i;
-                  const base = "px-3 py-2 rounded-md border mb-1";
+                  const base = "px-3 py-2 rounded-md border mb-2";
                   const style = isCorrect
                     ? "border-green-500 bg-green-100 dark:bg-green-800"
                     : isSelected
@@ -178,16 +182,13 @@ function QuizPage() {
                     <div key={i} className={`${base} ${style}`}>
                       <strong>{String.fromCharCode(65 + i)}.</strong>{" "}
                       {choice.text}
-
-                      {/* ✅ tampilkan gambar pilihan di review */}
                       {choice.image && (
                         <img
                           src={choice.image}
-                          alt={`Choice ${i}`}
-                          className="max-h-32 rounded mt-2 border"
+                          alt={`Choice ${String.fromCharCode(65 + i)}`}
+                          className="max-h-40 rounded my-2 border"
                         />
                       )}
-
                       <p className="text-xs italic mt-1 text-gray-600 dark:text-gray-300">
                         {choice.explanation}
                       </p>
@@ -206,6 +207,7 @@ function QuizPage() {
         </>
       ) : (
         <>
+          {/* === Quiz Mode === */}
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">
               {aircraft.toUpperCase()} / {decodedSubject.toUpperCase()} — Quiz
@@ -226,12 +228,11 @@ function QuizPage() {
             {q.question}
           </h3>
 
-          {/* ✅ tampilkan gambar soal di quiz */}
           {q.questionImage && (
             <img
               src={q.questionImage}
               alt="Question"
-              className="max-h-60 rounded mb-4 border"
+              className="max-h-64 rounded-lg border mb-4"
             />
           )}
 
@@ -255,18 +256,13 @@ function QuizPage() {
                   className={`w-full text-left p-3 border ${borderColor} rounded shadow-sm hover:shadow-md transition`}
                 >
                   <strong>{String.fromCharCode(65 + i)}.</strong> {choice.text}
-
-                  {/* ✅ tampilkan gambar pilihan di quiz */}
                   {choice.image && (
-                    <div className="mt-2">
-                      <img
-                        src={choice.image}
-                        alt={`Choice ${String.fromCharCode(65 + i)}`}
-                        className="max-h-32 rounded border"
-                      />
-                    </div>
+                    <img
+                      src={choice.image}
+                      alt={`Choice ${String.fromCharCode(65 + i)}`}
+                      className="max-h-40 rounded my-2 border"
+                    />
                   )}
-
                   {showExplanation && (
                     <p className="mt-1 text-sm text-gray-600 italic">
                       {choice.explanation}

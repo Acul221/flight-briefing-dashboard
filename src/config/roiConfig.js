@@ -1,28 +1,50 @@
-// ROI definitions for Flight Plan OCR
-// Coordinates are relative (0–1) of image width/height
-// Bisa di-tweak per airline/layout
-
+// ROI Config with angle & padding support
 const roiConfig = {
-  header: { 
-    label: "Header (Aircraft/Reg/Flight)", 
-    x: 0.05, y: 0.23, w: 0.45, h: 0.06 
-  },
-  stdsta: { 
-    label: "STD/STA", 
-    x: 0.55, y: 0.23, w: 0.40, h: 0.06 
-  },
-  dep: { 
-    label: "DEP line", 
-    x: 0.05, y: 0.35, w: 0.90, h: 0.06 
-  },
-  arr: { 
-    label: "ARR line", 
-    x: 0.05, y: 0.42, w: 0.90, h: 0.06 
-  },
-  times: { 
-    label: "Times (BLK/TKOF/LDG/AIR)", 
-    x: 0.55, y: 0.35, w: 0.40, h: 0.12 
-  },
-};
 
+  "header": {
+    "label": "Header (Aircraft/Reg/Flight)",
+    "x": 0.007389050838569249,
+    "y": 0.1941497502889175,
+    "w": 0.1599273057701045,
+    "h": 0.036026200873362446,
+    "angle": 1,
+    "pad": 0.01
+  },
+  "stdsta": {
+    "label": "STD/STA",
+    "x": 0.18151137028321088,
+    "y": 0.19366679962024938,
+    "w": 0.19945479327578375,
+    "h": 0.03820960698689956,
+    "angle": 0,
+    "pad": 0.01
+  },
+  "dep": {
+    "label": "DEP line",
+    "x": 0.004089049998330615,
+    "y": 0.29854931893827613,
+    "w": 0.27714675147660156,
+    "h": 0.04475982532751092,
+    "angle": 0,
+    "pad": 0.01
+  },
+  "arr": {
+    "label": "ARR line",
+    "x": 0.005452066808871278,
+    "y": 0.23859080685278214,
+    "w": 0.2757837346660609,
+    "h": 0.060043668122270744,
+    "angle": 0,
+    "pad": 0.01
+  },
+  "times": {
+    "label": "Times (BLK/TKOF/LDG/AIR)",
+    "x": 0.08374379559681124,
+    "y": 0.34770697381298615,
+    "w": 0.328032712403453,
+    "h": 0.05131004366812227,
+    "angle": 0,
+    "pad": 0.01
+  }
+}
 export default roiConfig;

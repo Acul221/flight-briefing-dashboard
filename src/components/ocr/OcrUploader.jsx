@@ -1,62 +1,37 @@
 import { useRef, useState, useEffect } from "react";
 import { warmup, getWorker, recognizePSM } from "../../lib/tessCdnWorker";
-import roiConfig from "../../config/roiConfig";
+import { useROIStore } from "../../store/useROIStore";
 
-// Crop relatif
-function cropRel(img, { x, y, w, h }, scale = 1.0, offset = { dx: 0, dy: 0 }) {
+function cropRel(img, roi, scale = 1.0) {
+  const { x, y, w, h, angle = 0, pad = 0 } = roi;
+
+  const cw = Math.max(1, Math.floor(img.naturalWidth * (w + pad * 2) * scale));
+  const ch = Math.max(1, Math.floor(img.naturalHeight * (h + pad * 2) * scale));
+  const sx = Math.floor(img.naturalWidth * (x - pad));
+  const sy = Math.floor(img.naturalHeight * (y - pad));
+  const sw = Math.floor(img.naturalWidth * (w + pad * 2));
+  const sh = Math.floor(img.naturalHeight * (h + pad * 2));
+
   const c = document.createElement("canvas");
-  const cw = Math.max(1, Math.floor(img.naturalWidth * w * scale));
-  const ch = Math.max(1, Math.floor(img.naturalHeight * h * scale));
-  const sx = Math.max(0, Math.floor(img.naturalWidth * (x + offset.dx)));
-  const sy = Math.max(0, Math.floor(img.naturalHeight * (y + offset.dy)));
-  const sw = Math.floor(img.naturalWidth * w);
-  const sh = Math.floor(img.naturalHeight * h);
-
   c.width = cw;
   c.height = ch;
   const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+
+  ctx.save();
+  ctx.translate(cw / 2, ch / 2);
+  ctx.rotate((angle * Math.PI) / 180);
+  ctx.drawImage(img, sx, sy, sw, sh, -cw / 2, -ch / 2, cw, ch);
+  ctx.restore();
 
   return c.toDataURL("image/png");
 }
 
-// Score teks berdasarkan keyword
-function scoreText(text) {
-  if (!text) return 0;
-  const keywords = ["DEP", "ARR", "STD", "STA", "BLOCK", "AIR", "LDG", "TKOF"];
-  const S = text.toUpperCase();
-  return keywords.reduce((acc, k) => acc + (S.includes(k) ? 1 : 0), 0);
-}
-
-// OCR dengan auto-adjust
 async function bestOCR(img, roi, psm = 6) {
-  const scales = [1.0, 1.1, 1.2];
-  const offsets = [
-    { dx: 0, dy: 0 },
-    { dx: -0.01, dy: 0 },
-    { dx: 0.01, dy: 0 },
-    { dx: 0, dy: -0.01 },
-    { dx: 0, dy: 0.01 },
-  ];
-
-  let best = { text: "", score: -1 };
-  for (const s of scales) {
-    for (const o of offsets) {
-      try {
-        const roiImg = cropRel(img, roi, s, o);
-        const text = await recognizePSM(roiImg, psm, {
-          tessedit_char_whitelist:
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
-        });
-        const sc = scoreText(text) + text.length * 0.01;
-        if (sc > best.score) best = { text, score: sc };
-      } catch (err) {
-        console.warn("ROI OCR failed:", err);
-      }
-    }
-  }
-  return best.text.trim();
+  const roiImg = cropRel(img, roi);
+  const text = await recognizePSM(roiImg, psm, {
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/-. \n",
+  });
+  return text.trim();
 }
 
 export default function OcrUploader({ onFileSelected }) {
@@ -64,6 +39,9 @@ export default function OcrUploader({ onFileSelected }) {
   const [imgURL, setImgURL] = useState("");
   const [loading, setLoading] = useState(false);
   const [debug, setDebug] = useState("");
+  const [debugMode, setDebugMode] = useState(false);
+  const [roiPreviews, setRoiPreviews] = useState({});
+  const roiConfig = useROIStore((s) => s.roiConfig);
 
   useEffect(() => {
     warmup();
@@ -76,6 +54,7 @@ export default function OcrUploader({ onFileSelected }) {
     setImgURL(url);
     setDebug("");
     setLoading(true);
+    setRoiPreviews({});
 
     try {
       await getWorker();
@@ -84,29 +63,28 @@ export default function OcrUploader({ onFileSelected }) {
         console.log("📷 Image loaded:", f.name);
         const t0 = performance.now();
 
-        try {
-          // Loop semua ROI dari config
-          const parts = {};
-          for (const [key, roi] of Object.entries(roiConfig)) {
-            parts[key] = await bestOCR(img, roi, 6);
-          }
+        const parts = {};
+        const previews = {};
 
-          let raw = Object.values(parts).filter(Boolean).join("\n");
+        for (const [key, roi] of Object.entries(roiConfig)) {
+          const roiImg = cropRel(img, roi);
+          previews[key] = roiImg;
+          parts[key] = await bestOCR(img, roi, 6);
+        }
 
-          // fallback: full OCR kalau hasil terlalu pendek
-          if (raw.length < 40) {
-            console.log("⚠️ ROI result weak → running full OCR fallback…");
-            raw = await recognizePSM(img.src, 6);
-          }
+        setRoiPreviews(previews);
 
-          console.log("📄 RAW OCR TEXT:\n", raw);
-          setDebug(raw.slice(0, 1000));
+        let raw = Object.values(parts).filter(Boolean).join("\n");
+        if (raw.length < 40) {
+          console.log("⚠️ ROI weak → running full OCR fallback…");
+          raw = await recognizePSM(img.src, 6);
+        }
 
-          if (onFileSelected) {
-            onFileSelected(f, raw);
-          }
-        } catch (err) {
-          console.error("❌ OCR failed:", err);
+        console.log("📄 RAW OCR TEXT:\n", raw);
+        setDebug(raw.slice(0, 1000));
+
+        if (onFileSelected) {
+          onFileSelected(f, raw);
         }
 
         console.log(`⏱️ OCR total: ${(performance.now() - t0).toFixed(0)} ms`);
@@ -123,17 +101,48 @@ export default function OcrUploader({ onFileSelected }) {
 
   return (
     <div className="w-full max-w-xl mx-auto p-4 rounded-2xl bg-white shadow">
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        disabled={loading}
-        onChange={handleFile}
-        className="block w-full text-sm border p-2 rounded mb-3"
-      />
+      <div className="flex items-center justify-between mb-3">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          disabled={loading}
+          onChange={handleFile}
+          className="block w-full text-sm border p-2 rounded"
+        />
+        <label className="ml-3 flex items-center gap-1 text-sm">
+          <input
+            type="checkbox"
+            checked={debugMode}
+            onChange={(e) => setDebugMode(e.target.checked)}
+          />
+          Debug Mode
+        </label>
+      </div>
 
-      {imgURL && <img src={imgURL} alt="preview" className="rounded mb-3" />}
+      {imgURL && (
+        <div className="relative mb-3">
+          <img src={imgURL} alt="preview" className="rounded" />
+          {debugMode &&
+            Object.entries(roiConfig).map(([key, roi]) => (
+              <div
+                key={key}
+                className="absolute border-2 border-red-500 opacity-50"
+                style={{
+                  left: `${roi.x * 100}%`,
+                  top: `${roi.y * 100}%`,
+                  width: `${roi.w * 100}%`,
+                  height: `${roi.h * 100}%`,
+                  transform: `rotate(${roi.angle || 0}deg)`,
+                  transformOrigin: "top left",
+                }}
+                title={roi.label}
+              />
+            ))}
+        </div>
+      )}
+
       {loading && <div className="text-sm animate-pulse">Running OCR…</div>}
 
       {debug && (
