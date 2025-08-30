@@ -100,17 +100,6 @@ function DashboardPage() {
           <CZIBWidget />
         </Section>
 
-        {/* Ramp */}
-        <Section
-          title="Ramp Snapshot"
-          icon="🛫"
-          visible={rampVisible}
-          setVisible={setRampVisible}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <RACSnapshotWidget />
-          </div>
-        </Section>
       </div>
     </div>
   );
