@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Device Debug</title>
+</head>
+<body>
+  <h1>Device Info</h1>
+  <p id="info"></p>
+  <script>
+    const info = `
+      DPR: ${window.devicePixelRatio}<br>
+      screen.width: ${screen.width}<br>
+      screen.height: ${screen.height}<br>
+      innerWidth: ${window.innerWidth}<br>
+      innerHeight: ${window.innerHeight}
+    `;
+    document.getElementById("info").innerHTML = info;
+  </script>
+</body>
+</html>
