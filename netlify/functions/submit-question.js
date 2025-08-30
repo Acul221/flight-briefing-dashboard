@@ -1,3 +1,4 @@
+// netlify/functions/submit-question.js
 const { Client } = require("@notionhq/client");
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -14,73 +15,105 @@ exports.handler = async function (event) {
   try {
     const body = JSON.parse(event.body);
 
-    // --- Build properties ---
+    // ====== Build Notion Properties ======
     const properties = {
+      // ID (Title)
       ID: {
-        title: [{ text: { content: body.id } }],
-      },
-      Question: {
-        rich_text: [{ text: { content: body.question || "" } }],
+        title: [
+          {
+            text: { content: body.id },
+          },
+        ],
       },
 
+      // Question text
+      Question: {
+        rich_text: [
+          {
+            text: { content: body.question || "" },
+          },
+        ],
+      },
+
+      // Question Image (URL column in Notion)
       ...(body.questionImage
-        ? { "Question Image URL": { url: body.questionImage } }
+        ? {
+            "Question Image URL": {
+              url: body.questionImage,
+            },
+          }
         : {}),
 
+      // Tags
       Tags: {
         multi_select: body.tags
           ? body.tags.map((tag) => ({ name: tag.trim() }))
           : [],
       },
+
+      // Aircraft
       Aircraft: {
         multi_select: body.aircraft
           ? body.aircraft.split(",").map((ac) => ({ name: ac.trim() }))
           : [],
       },
+
+      // Level
       Level: {
         select: { name: body.level || "Easy" },
       },
+
+      // Source
       Source: {
-        rich_text: [{ text: { content: body.source || "" } }],
+        rich_text: [
+          {
+            text: { content: body.source || "" },
+          },
+        ],
       },
+
+      // Category
       Category: {
         select: { name: body.category || "general" },
       },
 
+      // Choices A–D
       ...["A", "B", "C", "D"].reduce((acc, letter, i) => {
+        // Text of the choice
         acc[`Choice ${letter}`] = {
-          rich_text: [{ text: { content: body.choices?.[i] || "" } }],
+          rich_text: [
+            {
+              text: { content: body.choices?.[i] || "" },
+            },
+          ],
         };
+
+        // Explanation
         acc[`Explanation ${letter}`] = {
-          rich_text: [{ text: { content: body.explanations?.[i] || "" } }],
+          rich_text: [
+            {
+              text: { content: body.explanations?.[i] || "" },
+            },
+          ],
         };
+
+        // Correct flag
         acc[`isCorrect ${letter}`] = {
           checkbox: body.correctIndex === i,
         };
+
+        // Choice Image URL
         if (body.choiceImages?.[i]) {
           acc[`Choice Image ${letter} URL`] = {
             url: body.choiceImages[i],
           };
         }
+
         return acc;
       }, {}),
     };
 
-    // Tambahkan ImageStatus ke Notion (opsional: multi_select)
-    if (body.imageStatus) {
-      properties["ImageStatus"] = {
-        rich_text: [
-          {
-            text: {
-              content: `Q: ${body.imageStatus.question || "-"}, Choices: ${body.imageStatus.choices.join(
-                ", "
-              )}`,
-            },
-          },
-        ],
-      };
-    }
-
+    // ====== Push to Notion ======
     const response = await notion.pages.create({
       parent: { database_id: databaseId },
       properties,
