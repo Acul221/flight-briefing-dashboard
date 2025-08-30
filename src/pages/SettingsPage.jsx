@@ -1,13 +1,18 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";   // ⬅️ tambah ini
+// src/pages/SettingsPage.jsx
+import { useState, Suspense, lazy } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import QuizEditorMaster from "./QuizEditorMaster";
 import PasteNotamForm from "../components/PasteNotamForm";
 
+// Lazy import untuk admin RAC settings
+const AdminRACSettings = lazy(() => import("./admin/AdminRACSettings.jsx"));
+
 function SettingsPage() {
   const [showQuizEditor, setShowQuizEditor] = useState(false);
   const [showNotamUploader, setShowNotamUploader] = useState(false);
-  const [showRoiTester, setShowRoiTester] = useState(false);  // ⬅️ state baru
+  const [showRoiTester, setShowRoiTester] = useState(false);
+  const [showRacSettings, setShowRacSettings] = useState(true);
 
   return (
     <div className="p-6 space-y-6">
@@ -21,12 +26,38 @@ function SettingsPage() {
 
       {/* Settings Intro */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
-        <h2 className="text-xl font-bold mb-2 text-gray-800 dark:text-white">
-          Settings
-        </h2>
-        <p className="text-gray-600 dark:text-gray-300 text-sm">
-          Configure your preferences, upload tools, and experiment with internal modules.
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+            Settings
+          </h2>
+          <span className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700">
+            Admin Area
+          </span>
+        </div>
+        <p className="mt-2 text-gray-600 dark:text-gray-300 text-sm">
+          Configure your preferences, upload tools, and internal modules. RAC thresholds & offsets apply to the delay monitor.
         </p>
+      </div>
+
+      {/* RAC Settings (Admin) */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+        <button
+          onClick={() => setShowRacSettings(!showRacSettings)}
+          className="w-full text-left font-medium text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          {showRacSettings ? "▼ Hide RAC Settings" : "▶ Show RAC Settings"}
+        </button>
+
+        {showRacSettings && (
+          <div className="mt-4 border-t pt-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+              Atur <em>Deviation Thresholds</em> (warna) & <em>Offsets</em> per checkpoint. Perubahan di sini langsung dipakai di <code>RACDelayPage</code>.
+            </p>
+            <Suspense fallback={<div className="text-sm text-gray-500">Loading RAC Settings…</div>}>
+              <AdminRACSettings />
+            </Suspense>
+          </div>
+        )}
       </div>
 
       {/* Quiz Editor Accordion */}
