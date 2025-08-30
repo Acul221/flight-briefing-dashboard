@@ -1,3 +1,4 @@
+// netlify/functions/fetch-notion-questions.js
 const { Client } = require("@notionhq/client");
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -9,6 +10,7 @@ exports.handler = async function (event) {
     const aircraft = params.get("aircraft") || "a320";
     const subject = params.get("subject")?.toLowerCase() || null;
 
+    // Tentukan filter berdasarkan kategori atau aircraft
     const filter = ["icao", "crm", "weather", "airlaw", "human performance"].includes(
       aircraft.toLowerCase()
     )
@@ -27,13 +29,17 @@ exports.handler = async function (event) {
         return {
           id: props.ID?.title?.[0]?.plain_text || "(No ID)",
           question: props.Question?.rich_text?.[0]?.plain_text || "(No Question)",
-          questionImage: props["Question Image URL"]?.url || null,
+          questionImage: props["Question Image URL"]?.url || "",
+
+          // Choices (A-D)
           choices: ["A", "B", "C", "D"].map((letter) => ({
             text: props[`Choice ${letter}`]?.rich_text?.[0]?.plain_text || "",
-            image: props[`Choice Image ${letter} URL`]?.url || null,
             isCorrect: props[`isCorrect ${letter}`]?.checkbox || false,
             explanation: props[`Explanation ${letter}`]?.rich_text?.[0]?.plain_text || "",
+            image: props[`Choice Image ${letter} URL`]?.url || "",
           })),
+
+          // Metadata
           tags: props.Tags?.multi_select?.map((tag) => tag.name.toLowerCase()) || [],
           level: props.Level?.select?.name || "",
           source: props.Source?.rich_text?.[0]?.plain_text || "",
@@ -53,7 +59,7 @@ exports.handler = async function (event) {
     console.error("Fetch Error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      body: JSON.stringify({ error: error.message, details: error }),
     };
   }
 };

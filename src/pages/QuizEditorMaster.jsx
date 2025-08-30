@@ -2,15 +2,15 @@
 import React, { useState } from "react";
 import { CATEGORIES } from "../constants/categories";
 import RawTextImporter from "../components/quiz/RawTextImporter";
-import { uploadImage } from "../lib/uploadImage"; // <-- helper Supabase
+import { uploadImage } from "../lib/uploadImage";
 
 export default function QuizEditorMaster() {
   const [formData, setFormData] = useState({
     id: "",
     question: "",
-    questionImage: "",                // URL
+    questionImage: "", // URL
     choices: ["", "", "", ""],
-    choiceImages: ["", "", "", ""],   // URL per pilihan
+    choiceImages: ["", "", "", ""], // URL per pilihan
     correctIndex: null,
     explanations: ["", "", "", ""],
     tags: "",
@@ -23,11 +23,15 @@ export default function QuizEditorMaster() {
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // state kecil untuk indikator upload per field
   const [isUploadingQuestionImg, setIsUploadingQuestionImg] = useState(false);
-  const [isUploadingChoiceImg, setIsUploadingChoiceImg] = useState([false, false, false, false]);
+  const [isUploadingChoiceImg, setIsUploadingChoiceImg] = useState([
+    false,
+    false,
+    false,
+    false,
+  ]);
 
-  // ======== Import dari RawTextImporter (auto-fill) ========
+  // ====== IMPORT RAW TEXT ======
   const importFromRaw = (q) => {
     const get = (L) =>
       q.choices.find((c) => c.label === L) || {
@@ -37,7 +41,10 @@ export default function QuizEditorMaster() {
         image: "",
       };
 
-    const A = get("A"), B = get("B"), C = get("C"), D = get("D");
+    const A = get("A"),
+      B = get("B"),
+      C = get("C"),
+      D = get("D");
 
     setFormData((prev) => ({
       ...prev,
@@ -61,7 +68,7 @@ export default function QuizEditorMaster() {
     setShowPreview(true);
   };
 
-  // ======== Helpers ========
+  // ====== HELPERS ======
   const handleChange = (field, value) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -102,11 +109,11 @@ export default function QuizEditorMaster() {
     setShowSuccess(false);
   };
 
-  // ======== Upload Handlers ========
+  // ====== UPLOAD HANDLERS ======
   const uploadQuestionImage = async (file) => {
     try {
       setIsUploadingQuestionImg(true);
-      const url = await uploadImage(file, "questions"); // folder "questions"
+      const { url } = await uploadImage(file, "questions"); // ambil url
       handleChange("questionImage", url);
     } catch (e) {
       console.error(e);
@@ -122,7 +129,7 @@ export default function QuizEditorMaster() {
       flags[i] = true;
       setIsUploadingChoiceImg(flags);
 
-      const url = await uploadImage(file, "choices"); // folder "choices"
+      const { url } = await uploadImage(file, "choices"); // ambil url
       handleChoiceImageChange(i, url);
     } catch (e) {
       console.error(e);
@@ -134,7 +141,7 @@ export default function QuizEditorMaster() {
     }
   };
 
-  // ======== Submit to Notion ========
+  // ====== SUBMIT TO NOTION ======
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -187,7 +194,6 @@ export default function QuizEditorMaster() {
       {/* Raw Importer */}
       <RawTextImporter onImport={importFromRaw} />
 
-      {/* Form */}
       {!showSuccess ? (
         <form
           onSubmit={(e) => {
@@ -217,13 +223,15 @@ export default function QuizEditorMaster() {
             required
           />
 
-          {/* Question Image: file upload + url (opsional manual) */}
+          {/* Question Image */}
           <div className="space-y-2">
             <label className="block text-sm font-medium">Question Image</label>
             <input
               type="file"
               accept="image/*"
-              onChange={(e) => e.target.files?.[0] && uploadQuestionImage(e.target.files[0])}
+              onChange={(e) =>
+                e.target.files?.[0] && uploadQuestionImage(e.target.files[0])
+              }
             />
             {isUploadingQuestionImg && (
               <p className="text-xs italic text-gray-500">Uploading...</p>
@@ -241,7 +249,6 @@ export default function QuizEditorMaster() {
           {["A", "B", "C", "D"].map((label, i) => (
             <div key={i} className="space-y-2 border rounded p-3">
               <label className="block font-semibold">Choice {label}</label>
-
               <input
                 type="text"
                 value={formData.choices[i]}
@@ -250,16 +257,20 @@ export default function QuizEditorMaster() {
                 required
               />
 
-              {/* Choice Image Upload + URL */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-3">
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => e.target.files?.[0] && uploadChoiceImage(i, e.target.files[0])}
+                    onChange={(e) =>
+                      e.target.files?.[0] &&
+                      uploadChoiceImage(i, e.target.files[0])
+                    }
                   />
                   {isUploadingChoiceImg[i] && (
-                    <span className="text-xs italic text-gray-500">Uploading...</span>
+                    <span className="text-xs italic text-gray-500">
+                      Uploading...
+                    </span>
                   )}
                 </div>
 
@@ -267,7 +278,9 @@ export default function QuizEditorMaster() {
                   type="url"
                   placeholder={`Image URL for ${label} (optional)`}
                   value={formData.choiceImages[i]}
-                  onChange={(e) => handleChoiceImageChange(i, e.target.value)}
+                  onChange={(e) =>
+                    handleChoiceImageChange(i, e.target.value)
+                  }
                   className="w-full p-2 border rounded"
                 />
               </div>
@@ -317,7 +330,7 @@ export default function QuizEditorMaster() {
             ))}
           </select>
 
-          {/* Tags / Source / Level */}
+          {/* Tags, Source, Level */}
           <input
             type="text"
             placeholder="Tags (comma separated)"
@@ -325,7 +338,6 @@ export default function QuizEditorMaster() {
             onChange={(e) => handleChange("tags", e.target.value)}
             className="w-full p-2 border rounded"
           />
-
           <input
             type="text"
             placeholder="Source"
@@ -333,7 +345,6 @@ export default function QuizEditorMaster() {
             onChange={(e) => handleChange("source", e.target.value)}
             className="w-full p-2 border rounded"
           />
-
           <select
             value={formData.level}
             onChange={(e) => handleChange("level", e.target.value)}
@@ -370,10 +381,12 @@ export default function QuizEditorMaster() {
       {showPreview && !showSuccess && (
         <div className="border-t pt-6">
           <h3 className="text-lg font-semibold mb-2">Preview</h3>
-
-          <p><strong>ID:</strong> {formData.id}</p>
-          <p><strong>Question:</strong> {formData.question}</p>
-
+          <p>
+            <strong>ID:</strong> {formData.id}
+          </p>
+          <p>
+            <strong>Question:</strong> {formData.question}
+          </p>
           {formData.questionImage && (
             <img
               src={formData.questionImage}
@@ -381,7 +394,6 @@ export default function QuizEditorMaster() {
               className="max-h-60 rounded mb-4 border"
             />
           )}
-
           {formData.choices.map((choice, i) => (
             <div key={i} className="mb-3">
               <strong>{String.fromCharCode(65 + i)}.</strong> {choice}
@@ -402,13 +414,21 @@ export default function QuizEditorMaster() {
               </div>
             </div>
           ))}
-
-          <p><strong>Aircraft:</strong> {formData.aircraft}</p>
-          <p><strong>Category:</strong> {formData.category}</p>
-          <p><strong>Tags:</strong> {formData.tags}</p>
-          <p><strong>Level:</strong> {formData.level}</p>
-          <p><strong>Source:</strong> {formData.source}</p>
-
+          <p>
+            <strong>Aircraft:</strong> {formData.aircraft}
+          </p>
+          <p>
+            <strong>Category:</strong> {formData.category}
+          </p>
+          <p>
+            <strong>Tags:</strong> {formData.tags}
+          </p>
+          <p>
+            <strong>Level:</strong> {formData.level}
+          </p>
+          <p>
+            <strong>Source:</strong> {formData.source}
+          </p>
           <button
             onClick={handleSubmit}
             className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
