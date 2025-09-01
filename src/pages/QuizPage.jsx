@@ -1,6 +1,6 @@
-// src/pages/QuizPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import QuizGate from "@/components/QuizGate";
 
 function QuizPage() {
   const { aircraft, subject } = useParams();
@@ -127,164 +127,168 @@ function QuizPage() {
         ← Back to Subjects
       </button>
 
-      {isReview ? (
-        <>
-          {/* ===== Grade Report ===== */}
-          <div className="mb-8 border p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
-            <h2 className="text-xl font-bold mb-2">Grade Report</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {aircraft.toUpperCase()} - {decodedSubject.toUpperCase()} | Exam
-              Summary
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Correct {correctAnswers.length} of {filteredQuestions.length}{" "}
-              questions
-            </p>
-            <p className={`text-lg font-semibold ${resultColor}`}>
-              {percentage}% {percentage >= 80 ? "Passed" : "Failed"}
-            </p>
-          </div>
-
-          {/* ===== Review Mode ===== */}
-          {filteredQuestions.map((question, idx) => {
-            const selectedIdx = answers[idx];
-            const nomor = `N°${String(idx + 1).padStart(3, "0")}`;
-            return (
-              <div
-                key={idx}
-                className="mb-6 border p-4 rounded-lg bg-white dark:bg-gray-800"
-              >
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                  {nomor} — ID: {question.id}
-                </p>
-                <p className="font-semibold mb-2">
-                  Question {idx + 1} of {filteredQuestions.length}:{" "}
-                  {question.question}
-                </p>
-                {question.questionImage && (
-                  <img
-                    src={question.questionImage}
-                    alt="Question"
-                    className="max-h-60 rounded mb-3 border"
-                  />
-                )}
-
-                {question.choices.map((choice, i) => {
-                  const isCorrect = choice.isCorrect;
-                  const isSelected = selectedIdx === i;
-                  const base = "px-3 py-2 rounded-md border mb-1";
-                  const style = isCorrect
-                    ? "border-green-500 bg-green-100 dark:bg-green-800"
-                    : isSelected
-                    ? "border-red-500 bg-red-100 dark:bg-red-800"
-                    : "border-gray-300 dark:border-gray-700";
-
-                  return (
-                    <div key={i} className={`${base} ${style}`}>
-                      <strong>{String.fromCharCode(65 + i)}.</strong>{" "}
-                      {choice.text}
-                      {choice.image && (
-                        <img
-                          src={choice.image}
-                          alt={`Choice ${String.fromCharCode(65 + i)}`}
-                          className="max-h-32 rounded my-2 border"
-                        />
-                      )}
-                      <p className="text-xs italic mt-1 text-gray-600 dark:text-gray-300">
-                        {choice.explanation}
-                      </p>
-                      {isSelected && (
-                        <span className="ml-2 italic text-sm">(Your Answer)</span>
-                      )}
-                      {isCorrect && (
-                        <span className="ml-2 italic text-sm">(Correct)</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </>
-      ) : (
-        <>
-          {/* ===== Quiz Mode ===== */}
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">
-              {aircraft.toUpperCase()} / {decodedSubject.toUpperCase()} — Quiz
-            </h2>
-            <div className="flex items-center gap-2">
-              <LevelBadge level={q.level.toLowerCase()} />
-              {q.source && (
-                <span className="text-xs text-gray-500 italic">{q.source}</span>
-              )}
+      <QuizGate total={filteredQuestions.length}>
+        {isReview ? (
+          <>
+            {/* ===== Grade Report ===== */}
+            <div className="mb-8 border p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
+              <h2 className="text-xl font-bold mb-2">Grade Report</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {aircraft.toUpperCase()} - {decodedSubject.toUpperCase()} | Exam
+                Summary
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Correct {correctAnswers.length} of {filteredQuestions.length}{" "}
+                questions
+              </p>
+              <p className={`text-lg font-semibold ${resultColor}`}>
+                {percentage}% {percentage >= 80 ? "Passed" : "Failed"}
+              </p>
             </div>
-          </div>
 
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-            N°{String(currentIndex + 1).padStart(3, "0")} — ID: {q.id}
-          </p>
-          <h3 className="text-lg font-semibold mb-2">
-            Question {currentIndex + 1} of {filteredQuestions.length}:{" "}
-            {q.question}
-          </h3>
-          {q.questionImage && (
-            <img
-              src={q.questionImage}
-              alt="Question"
-              className="max-h-60 rounded mb-4 border"
-            />
-          )}
-
-          <div className="space-y-2">
-            {q.choices.map((choice, i) => {
-              const isCorrect = choice.isCorrect;
-              const isSelected = selected === i;
-              const borderColor = !showExplanation
-                ? "border-gray-300"
-                : isCorrect
-                ? "border-green-500 bg-green-100"
-                : isSelected
-                ? "border-red-500 bg-red-100"
-                : "border-gray-200";
-
+            {/* ===== Review Mode ===== */}
+            {filteredQuestions.map((question, idx) => {
+              const selectedIdx = answers[idx];
+              const nomor = `N°${String(idx + 1).padStart(3, "0")}`;
               return (
-                <button
-                  key={i}
-                  onClick={() => handleAnswer(i)}
-                  disabled={showExplanation}
-                  className={`w-full text-left p-3 border ${borderColor} rounded shadow-sm hover:shadow-md transition`}
+                <div
+                  key={idx}
+                  className="mb-6 border p-4 rounded-lg bg-white dark:bg-gray-800"
                 >
-                  <strong>{String.fromCharCode(65 + i)}.</strong> {choice.text}
-                  {choice.image && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                    {nomor} — ID: {question.id}
+                  </p>
+                  <p className="font-semibold mb-2">
+                    Question {idx + 1} of {filteredQuestions.length}:{" "}
+                    {question.question}
+                  </p>
+                  {question.questionImage && (
                     <img
-                      src={choice.image}
-                      alt={`Choice ${String.fromCharCode(65 + i)}`}
-                      className="max-h-32 rounded my-2 border"
+                      src={question.questionImage}
+                      alt="Question"
+                      className="max-h-60 rounded mb-3 border"
                     />
                   )}
-                  {showExplanation && (
-                    <p className="mt-1 text-sm text-gray-600 italic">
-                      {choice.explanation}
-                    </p>
-                  )}
-                </button>
+
+                  {question.choices.map((choice, i) => {
+                    const isCorrect = choice.isCorrect;
+                    const isSelected = selectedIdx === i;
+                    const base = "px-3 py-2 rounded-md border mb-1";
+                    const style = isCorrect
+                      ? "border-green-500 bg-green-100 dark:bg-green-800"
+                      : isSelected
+                      ? "border-red-500 bg-red-100 dark:bg-red-800"
+                      : "border-gray-300 dark:border-gray-700";
+
+                    return (
+                      <div key={i} className={`${base} ${style}`}>
+                        <strong>{String.fromCharCode(65 + i)}.</strong>{" "}
+                        {choice.text}
+                        {choice.image && (
+                          <img
+                            src={choice.image}
+                            alt={`Choice ${String.fromCharCode(65 + i)}`}
+                            className="max-h-32 rounded my-2 border"
+                          />
+                        )}
+                        <p className="text-xs italic mt-1 text-gray-600 dark:text-gray-300">
+                          {choice.explanation}
+                        </p>
+                        {isSelected && (
+                          <span className="ml-2 italic text-sm">
+                            (Your Answer)
+                          </span>
+                        )}
+                        {isCorrect && (
+                          <span className="ml-2 italic text-sm">(Correct)</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               );
             })}
-          </div>
+          </>
+        ) : (
+          <>
+            {/* ===== Quiz Mode ===== */}
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">
+                {aircraft.toUpperCase()} / {decodedSubject.toUpperCase()} — Quiz
+              </h2>
+              <div className="flex items-center gap-2">
+                <LevelBadge level={q.level.toLowerCase()} />
+                {q.source && (
+                  <span className="text-xs text-gray-500 italic">{q.source}</span>
+                )}
+              </div>
+            </div>
 
-          {showExplanation && (
-            <button
-              onClick={handleNext}
-              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              {currentIndex < filteredQuestions.length - 1
-                ? "Next Question"
-                : "Finish & Review"}
-            </button>
-          )}
-        </>
-      )}
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+              N°{String(currentIndex + 1).padStart(3, "0")} — ID: {q.id}
+            </p>
+            <h3 className="text-lg font-semibold mb-2">
+              Question {currentIndex + 1} of {filteredQuestions.length}:{" "}
+              {q.question}
+            </h3>
+            {q.questionImage && (
+              <img
+                src={q.questionImage}
+                alt="Question"
+                className="max-h-60 rounded mb-4 border"
+              />
+            )}
+
+            <div className="space-y-2">
+              {q.choices.map((choice, i) => {
+                const isCorrect = choice.isCorrect;
+                const isSelected = selected === i;
+                const borderColor = !showExplanation
+                  ? "border-gray-300"
+                  : isCorrect
+                  ? "border-green-500 bg-green-100"
+                  : isSelected
+                  ? "border-red-500 bg-red-100"
+                  : "border-gray-200";
+
+                return (
+                  <button
+                    key={i}
+                    onClick={() => handleAnswer(i)}
+                    disabled={showExplanation}
+                    className={`w-full text-left p-3 border ${borderColor} rounded shadow-sm hover:shadow-md transition`}
+                  >
+                    <strong>{String.fromCharCode(65 + i)}.</strong> {choice.text}
+                    {choice.image && (
+                      <img
+                        src={choice.image}
+                        alt={`Choice ${String.fromCharCode(65 + i)}`}
+                        className="max-h-32 rounded my-2 border"
+                      />
+                    )}
+                    {showExplanation && (
+                      <p className="mt-1 text-sm text-gray-600 italic">
+                        {choice.explanation}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {showExplanation && (
+              <button
+                onClick={handleNext}
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                {currentIndex < filteredQuestions.length - 1
+                  ? "Next Question"
+                  : "Finish & Review"}
+              </button>
+            )}
+          </>
+        )}
+      </QuizGate>
     </div>
   );
 }

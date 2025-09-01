@@ -3,15 +3,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useDrag } from "@use-gesture/react";
 import Navbar from "../components/ui/Navbar";
 import Sidebar from "../components/ui/Sidebar";
-import Footer from "../components/ui/Footer";
+import Footer from "../components/Footer";
+import LogoutButton from "@/components/LogoutButton";
+import { useProfile } from "@/hooks/useProfile"; // ✅ untuk ambil email & role
 
 function MainLayout({ children }) {
   const [collapsed, setCollapsed] = useState(true);
+  const { profile } = useProfile();
 
   const openSidebar = () => setCollapsed(false);
   const closeSidebar = () => setCollapsed(true);
 
-  // Swipe kanan → buka sidebar (hanya mobile)
+  // Swipe kanan → buka sidebar (mobile only)
   const bindGesture = useDrag(
     ({ movement: [mx], direction: [xDir], down }) => {
       if (
@@ -25,14 +28,10 @@ function MainLayout({ children }) {
         openSidebar();
       }
     },
-    {
-      axis: "x",
-      pointer: { touch: true },
-      eventOptions: { passive: false },
-    }
+    { axis: "x", pointer: { touch: true }, eventOptions: { passive: false } }
   );
 
-  // Auto-collapse on screen resize
+  // Auto-collapse on resize
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) setCollapsed(true);
@@ -45,13 +44,13 @@ function MainLayout({ children }) {
   return (
     <div
       {...bindGesture()}
-      className="min-h-screen flex bg-gradient-to-br from-gray-100/80 via-white/60 to-gray-200/80 dark:from-gray-900/80 dark:via-gray-800/60 dark:to-gray-900/80 text-gray-900 dark:text-white transition-colors duration-300 touch-none select-none"
-      style={{ touchAction: "pan-y" }} // 🧠 penting untuk swipe gesture
+      className="min-h-screen flex bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-white transition-colors duration-300"
+      style={{ touchAction: "pan-y" }}
     >
       {/* Sidebar */}
       <Sidebar collapsed={collapsed} onClose={closeSidebar} />
 
-      {/* Overlay Blur */}
+      {/* Overlay Blur (mobile) */}
       <AnimatePresence>
         {!collapsed && (
           <motion.div
@@ -68,7 +67,27 @@ function MainLayout({ children }) {
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 z-10">
-        <Navbar toggleSidebar={() => setCollapsed(!collapsed)} />
+        {/* Header */}
+        <header className="flex justify-between items-center px-6 py-3 bg-white/80 dark:bg-gray-800/80 shadow-md backdrop-blur-md">
+          <Navbar toggleSidebar={() => setCollapsed(!collapsed)} />
+
+          {/* user info + logout */}
+          <div className="flex items-center gap-4">
+            {profile ? (
+              <div className="text-right">
+                <p className="text-sm font-medium">{profile.email}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {profile.role === "admin" ? "Admin" : "User"}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Loading...</p>
+            )}
+            <LogoutButton />
+          </div>
+        </header>
+
+        {/* Page content */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10 transition-all duration-300 ease-in-out">
           <AnimatePresence mode="wait">
             <motion.div
@@ -82,6 +101,7 @@ function MainLayout({ children }) {
             </motion.div>
           </AnimatePresence>
         </main>
+
         <Footer />
       </div>
     </div>

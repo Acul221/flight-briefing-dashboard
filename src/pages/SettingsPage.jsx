@@ -4,15 +4,18 @@ import { Link } from "react-router-dom";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import QuizEditorMaster from "./QuizEditorMaster";
 import PasteNotamForm from "../components/PasteNotamForm";
+import AdminPromos from "./admin/AdminPromos";
 
 // Lazy import untuk admin RAC settings
 const AdminRACSettings = lazy(() => import("./admin/AdminRACSettings.jsx"));
 
 function SettingsPage() {
+  // semua default false → auto hide
+  const [showRacSettings, setShowRacSettings] = useState(false);
+  const [showPromos, setShowPromos] = useState(false);
   const [showQuizEditor, setShowQuizEditor] = useState(false);
   const [showNotamUploader, setShowNotamUploader] = useState(false);
   const [showRoiTester, setShowRoiTester] = useState(false);
-  const [showRacSettings, setShowRacSettings] = useState(true);
 
   return (
     <div className="p-6 space-y-6">
@@ -47,7 +50,6 @@ function SettingsPage() {
         >
           {showRacSettings ? "▼ Hide RAC Settings" : "▶ Show RAC Settings"}
         </button>
-
         {showRacSettings && (
           <div className="mt-4 border-t pt-4">
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
@@ -60,6 +62,17 @@ function SettingsPage() {
         )}
       </div>
 
+      {/* Promos Accordion */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
+        <button
+          onClick={() => setShowPromos(!showPromos)}
+          className="w-full text-left font-medium text-blue-600"
+        >
+          {showPromos ? "▼ Hide Promos" : "▶ Show Promos"}
+        </button>
+        {showPromos && <AdminPromos />}
+      </div>
+
       {/* Quiz Editor Accordion */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
         <button
@@ -68,7 +81,6 @@ function SettingsPage() {
         >
           {showQuizEditor ? "▼ Hide Quiz Editor" : "▶ Show Quiz Editor"}
         </button>
-
         {showQuizEditor && (
           <div className="mt-4 border-t pt-4">
             <QuizEditorMaster />
@@ -84,7 +96,6 @@ function SettingsPage() {
         >
           {showNotamUploader ? "▼ Hide NOTAM Uploader" : "▶ Show NOTAM Uploader"}
         </button>
-
         {showNotamUploader && (
           <div className="mt-4 border-t pt-4">
             <PasteNotamForm />
@@ -100,7 +111,6 @@ function SettingsPage() {
         >
           {showRoiTester ? "▼ Hide ROI Tester" : "▶ Show ROI Tester"}
         </button>
-
         {showRoiTester && (
           <div className="mt-4 border-t pt-4">
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
