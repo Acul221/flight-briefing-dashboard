@@ -25,7 +25,7 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminPromos = lazy(() => import("./pages/AdminPromos"));
 const Unauthorized = lazy(() => import("./pages/Unauthorized"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
-
+const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 // ⏳ Lazy import new static pages (English only)
 const PricingPage = lazy(() => import("./pages/Pricing"));
 const TermsPage = lazy(() => import("./pages/TermsEN"));
@@ -114,7 +114,7 @@ export default function App() {
             </MainLayout>
           }
         />
-
+        <Route path="/payment-result" element={<MainLayout><PaymentResult /></MainLayout>} />
         {/* Redirect old Indonesian routes → English */}
         <Route path="/terms-id" element={<Navigate to="/terms" replace />} />
         <Route path="/refund-policy-id" element={<Navigate to="/refund-policy" replace />} />

@@ -6,12 +6,10 @@ export default function useMidtrans(clientKey) {
       console.error("❌ Missing Midtrans Client Key");
       return;
     }
-
     const script = document.createElement("script");
     script.src = "https://app.sandbox.midtrans.com/snap/snap.js";
     script.setAttribute("data-client-key", clientKey);
     script.async = true;
-
     document.body.appendChild(script);
 
     return () => {

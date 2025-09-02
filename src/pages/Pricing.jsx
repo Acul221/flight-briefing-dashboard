@@ -14,10 +14,14 @@ export default function Pricing() {
 
     if (window.snap && token) {
       window.snap.pay(token, {
-        onSuccess: (res) => alert("✅ Success!\n" + JSON.stringify(res)),
-        onPending: (res) => alert("⏳ Pending!\n" + JSON.stringify(res)),
-        onError: (res) => alert("❌ Error!\n" + JSON.stringify(res)),
-        onClose: () => alert("Popup closed"),
+        onSuccess: (res) =>
+          (window.location.href = `/payment-result?status=success&order_id=${res.order_id}`),
+        onPending: (res) =>
+          (window.location.href = `/payment-result?status=pending&order_id=${res.order_id}`),
+        onError: (res) =>
+          (window.location.href = `/payment-result?status=error&order_id=${res.order_id}`),
+        onClose: () =>
+          alert("Popup closed without completing the payment"),
       });
     } else {
       alert("Midtrans Snap not loaded. Please refresh the page.");
@@ -38,7 +42,10 @@ export default function Pricing() {
           content="Choose your SkyDeckPro plan. Free, Pro (Rp 60k/month), or Bundle (Rp 90k/month)."
         />
         <meta property="og:image" content="/og-image.png" />
-        <meta property="og:url" content="https://skydeckpro.netlify.app/pricing" />
+        <meta
+          property="og:url"
+          content="https://skydeckpro.netlify.app/pricing"
+        />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Pricing – SkyDeckPro" />
