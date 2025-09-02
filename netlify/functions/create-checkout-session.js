@@ -1,24 +1,32 @@
-import fetch from "node-fetch";
-
+// netlify/functions/create-checkout-session.js
 export async function handler(event) {
   try {
+    if (event.httpMethod !== "POST") {
+      return { statusCode: 405, body: "Method Not Allowed" };
+    }
+
     const { plan } = JSON.parse(event.body || "{}");
 
-    // ✅ Map plan to amount & name
     const plans = {
-      pro: { amount: 60000, name: "SkyDeckPro – Pro" },
+      pro:    { amount: 60000, name: "SkyDeckPro – Pro" },
       bundle: { amount: 90000, name: "SkyDeckPro – Bundle" },
     };
-
     const selected = plans[plan];
     if (!selected) {
       return { statusCode: 400, body: JSON.stringify({ error: "Invalid plan" }) };
     }
 
-    // ✅ Generate unique order_id
+    // 🔑 Server Key dari Netlify env
+    const raw = (process.env.MIDTRANS_SERVER_KEY || "").trim();
+    const serverKey = raw.includes("=") ? raw.split("=").pop().trim().replace(/^"(.*)"$/, "$1") : raw;
+
+    if (!serverKey || !serverKey.startsWith("Mid-server-")) {
+      return { statusCode: 500, body: JSON.stringify({ error: "Invalid or missing server key" }) };
+    }
+
     const order_id = `skydeck_${plan}_${Date.now()}`;
 
-    // ✅ Payload for Midtrans Snap
+    // Payload ke Snap API
     const payload = {
       transaction_details: {
         order_id,
@@ -34,32 +42,33 @@ export async function handler(event) {
       ],
       customer_details: {
         first_name: "Pilot",
-        email: "test@skydeckpro.net", // bisa diganti nanti dengan user login
+        email: "test@skydeckpro.net",
       },
       credit_card: { secure: true },
       currency: "IDR",
+      callbacks: {
+        finish: "https://skydeckpro.netlify.app/payment-result",
+      },
     };
 
-    // ✅ Call Midtrans Snap API
-    const serverKey = process.env.MIDTRANS_SERVER_KEY;
-    if (!serverKey) {
-      return { statusCode: 500, body: "Missing MIDTRANS_SERVER_KEY in env" };
-    }
-
+    // Call Midtrans Snap
     const res = await fetch("https://app.sandbox.midtrans.com/snap/v1/transactions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json",
-        Authorization:
-          "Basic " + Buffer.from(serverKey + ":").toString("base64"),
+        Accept: "application/json",
+        Authorization: "Basic " + Buffer.from(serverKey + ":").toString("base64"),
       },
       body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      return { statusCode: res.status, body: JSON.stringify(data) };
+      return {
+        statusCode: res.status,
+        body: JSON.stringify({ error: "midtrans_error", data }),
+      };
     }
 
     return {
@@ -70,7 +79,8 @@ export async function handler(event) {
         order_id,
       }),
     };
-  } catch (e) {
-    return { statusCode: 500, body: e.message };
+  } catch (err) {
+    console.error("Checkout error:", err);
+    return { statusCode: 500, body: JSON.stringify({ error: "Server error", message: err.message }) };
   }
 }

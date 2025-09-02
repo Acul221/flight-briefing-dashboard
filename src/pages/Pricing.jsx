@@ -5,28 +5,36 @@ export default function Pricing() {
   // ✅ Ambil Client Key dari .env (Netlify juga harus punya VITE_MIDTRANS_CLIENT_KEY)
   useMidtrans(import.meta.env.VITE_MIDTRANS_CLIENT_KEY);
 
-  const buy = async (plan) => {
-    const r = await fetch("/.netlify/functions/create-checkout-session", {
-      method: "POST",
-      body: JSON.stringify({ plan }),
-    });
-    const { token } = await r.json();
+const buy = async (plan) => {
+  const r = await fetch("/.netlify/functions/create-checkout-session", {
+    method: "POST",
+    body: JSON.stringify({ plan }),
+  });
 
-    if (window.snap && token) {
-      window.snap.pay(token, {
-        onSuccess: (res) =>
-          (window.location.href = `/payment-result?status=success&order_id=${res.order_id}`),
-        onPending: (res) =>
-          (window.location.href = `/payment-result?status=pending&order_id=${res.order_id}`),
-        onError: (res) =>
-          (window.location.href = `/payment-result?status=error&order_id=${res.order_id}`),
-        onClose: () =>
-          alert("Popup closed without completing the payment"),
-      });
-    } else {
-      alert("Midtrans Snap not loaded. Please refresh the page.");
-    }
-  };
+  const data = await r.json().catch(() => ({}));
+
+  if (!r.ok) {
+    console.error("Checkout session error:", r.status, data);
+    alert(`Payment init failed (${r.status}). Check console for details.`);
+    return;
+  }
+
+  const { token } = data;
+  if (window.snap && token) {
+    window.snap.pay(token, {
+      onSuccess: (res) =>
+        (window.location.href = `/payment-result?status=success&order_id=${res.order_id}`),
+      onPending: (res) =>
+        (window.location.href = `/payment-result?status=pending&order_id=${res.order_id}`),
+      onError: (res) =>
+        (window.location.href = `/payment-result?status=error&order_id=${res.order_id}`),
+      onClose: () => alert("Popup closed without completing the payment"),
+    });
+  } else {
+    alert("Midtrans not ready or token missing. Please refresh the page.");
+  }
+};
+;
 
   return (
     <div className="max-w-3xl mx-auto p-6">
