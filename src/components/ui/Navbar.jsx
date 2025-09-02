@@ -13,12 +13,7 @@ function Navbar({ toggleSidebar }) {
   const dropdownRef = useRef(null);
 
   const links = [
-    { name: 'Superlink', url: 'https://application.lionair.com/saj/crewlink/Login.aspx' },
-    { name: 'eCrew', url: 'https://ecrew.lionair.com/ecrew' },
-    { name: 'DMI', url: 'https://docs.google.com/spreadsheets/d/1T5eFF8FHhWwjYPVOhSCqKik3b4WVEPcKOonZ7R4PSD0/edit' },
-    { name: 'E-PostFlight', url: 'https://app.lionairgroup.com:18010/epfaims/Login.aspx' },
-    { name: 'Staff Portal', url: 'https://staff.lionair.com' },
-    { name: 'Coruson', url: 'https://gaelidentityserver.gaelenlighten.com/core/login?signin=7cfcc9e47cae24ebf5756cd04910d6e3' }
+    { name: 'Skydeck', url: 'https://skydeckpro.netlify.app/' },
   ];
 
   useEffect(() => {
