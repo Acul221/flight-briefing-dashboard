@@ -1,31 +1,37 @@
 import { Helmet } from "react-helmet-async";
+import useMidtrans from "@/hooks/useMidtrans";
 
 export default function Pricing() {
+  // ✅ Ambil Client Key dari .env (Netlify juga harus punya VITE_MIDTRANS_CLIENT_KEY)
+  useMidtrans(import.meta.env.VITE_MIDTRANS_CLIENT_KEY);
+
   const buy = async (plan) => {
     const r = await fetch("/.netlify/functions/create-checkout-session", {
       method: "POST",
       body: JSON.stringify({ plan }),
     });
     const { token } = await r.json();
-    window.snap.pay(token, {
-      onSuccess: (res) => alert("Success!\n" + JSON.stringify(res)),
-      onPending: (res) => alert("Pending!\n" + JSON.stringify(res)),
-      onError:   (res) => alert("Error!\n" + JSON.stringify(res)),
-      onClose:   () => alert("Popup closed"),
-    });
+
+    if (window.snap && token) {
+      window.snap.pay(token, {
+        onSuccess: (res) => alert("✅ Success!\n" + JSON.stringify(res)),
+        onPending: (res) => alert("⏳ Pending!\n" + JSON.stringify(res)),
+        onError: (res) => alert("❌ Error!\n" + JSON.stringify(res)),
+        onClose: () => alert("Popup closed"),
+      });
+    } else {
+      alert("Midtrans Snap not loaded. Please refresh the page.");
+    }
   };
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      {/* ✅ SEO Meta */}
       <Helmet>
         <title>Pricing – SkyDeckPro</title>
         <meta
           name="description"
           content="Choose your SkyDeckPro plan. Free, Pro (Rp 60k/month), or Bundle (Rp 90k/month). All prices in IDR."
         />
-
-        {/* Open Graph */}
         <meta property="og:title" content="Pricing – SkyDeckPro" />
         <meta
           property="og:description"
@@ -34,8 +40,6 @@ export default function Pricing() {
         <meta property="og:image" content="/og-image.png" />
         <meta property="og:url" content="https://skydeckpro.netlify.app/pricing" />
         <meta property="og:type" content="website" />
-
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Pricing – SkyDeckPro" />
         <meta
@@ -45,7 +49,6 @@ export default function Pricing() {
         <meta name="twitter:image" content="/og-image.png" />
       </Helmet>
 
-      {/* ✅ Content */}
       <h1 className="text-2xl font-bold mb-4">Plans</h1>
       <p className="mb-6 text-gray-600">
         All prices are shown in Indonesian Rupiah (IDR).
