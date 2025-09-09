@@ -1,59 +1,96 @@
+// src/hooks/useProfile.js
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+/**
+ * useProfile
+ * - Ambil data profil user dari tabel `profiles`
+ * - Wajib ada kolom `role` di tabel profiles (default: "user")
+ * - Return { profile, loading, error }
+ */
 export function useProfile() {
-  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
-    const loadProfile = async () => {
+    async function run() {
       setLoading(true);
+      setError(null);
 
-      // cek session aktif
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        // 1) Ambil session user
+        const {
+          data: { session },
+          error: sErr,
+        } = await supabase.auth.getSession();
+        if (sErr) throw sErr;
 
-      if (!session?.user) {
-        if (isMounted) {
-          setProfile(null);
-          setLoading(false);
+        if (!session?.user?.id) {
+          if (mounted) {
+            setProfile(null);
+            setLoading(false);
+          }
+          return;
         }
-        return;
-      }
 
-      // ambil data profile user
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session.user.id)
-        .single();
+        // 2) Query profile dari tabel `profiles`
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(
+            "id,email,full_name,role,newsletter_opt_in,welcome_email_sent,created_at"
+          )
+          .eq("id", session.user.id)
+          .single();
 
-      if (isMounted) {
-        if (error) {
-          console.error("useProfile error:", error);
-          setProfile(null);
-        } else {
-          setProfile(data);
+        if (error) throw error;
+
+        // 3) Pastikan role ada (default ke "user" kalau null/undefined)
+        const safeProfile = {
+          ...data,
+          role: data.role ?? "user",
+        };
+
+        if (mounted) setProfile(safeProfile);
+      } catch (err) {
+        console.error("[useProfile] error:", err);
+        if (mounted) {
+          setError(err);
+
+          // fallback: hanya info dasar dari token
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (session?.user) {
+            setProfile({
+              id: session.user.id,
+              email: session.user.email ?? "",
+              role: null, // jangan paksa user, biar AdminRoute bisa blok
+            });
+          } else {
+            setProfile(null);
+          }
         }
-        setLoading(false);
+      } finally {
+        if (mounted) setLoading(false);
       }
-    };
+    }
 
-    loadProfile();
+    run();
 
-    // listen event perubahan session (login/logout)
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      loadProfile();
+    // refresh saat auth berubah
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      run();
     });
 
     return () => {
-      isMounted = false;
-      authListener.subscription.unsubscribe();
+      mounted = false;
+      sub?.subscription?.unsubscribe?.();
     };
   }, []);
 
-  return { profile, loading };
+  return { profile, loading, error };
 }

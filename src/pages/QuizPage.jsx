@@ -1,294 +1,315 @@
-import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import QuizGate from "@/components/QuizGate";
+// src/pages/QuizPage.jsx
+import React, { useEffect, useCallback, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+
+import QuizHeader from "@/components/quiz/QuizHeader";
+import QuestionCard from "@/components/quiz/QuestionCard";
+import QuizFooterNav from "@/components/quiz/QuizFooterNav";
+import SkeletonQuestion from "@/components/quiz/SkeletonQuestion";
+import QuestionNavigator from "@/components/quiz/QuestionNavigator";
+import QuizBanner from "@/components/quiz/QuizBanner";
+import UpgradeLimitModal from "@/components/quiz/UpgradeLimitModal";
+
+import useQuizSession from "@/hooks/useQuizSession";
+import { useSession } from "@/hooks/useSession";
+import { useSubscription } from "@/hooks/useSubscription";
+import { useProfile } from "@/hooks/useProfile";
+import { logEvent } from "@/lib/analytics";
+
+// Map status subscription → 'guest' | 'inactive' | 'pro'
+function resolveStatus(session, subscription) {
+  if (!session) return "guest";
+  // Sesuaikan dengan skema tabel subscriptions kamu
+  if (
+    subscription?.status === "active" ||
+    subscription?.plan === "pro" ||
+    subscription?.tier === "pro"
+  ) {
+    return "pro";
+  }
+  return "inactive";
+}
 
 function QuizPage() {
+  const navigate = useNavigate();
   const { aircraft, subject } = useParams();
-  const decodedSubject = decodeURIComponent(subject);
+  const decodedSubject = decodeURIComponent(subject || "");
 
-  const [questions, setQuestions] = useState([]);
-  const [filteredQuestions, setFilteredQuestions] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selected, setSelected] = useState(null);
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [levelFilter, setLevelFilter] = useState("All");
-  const [tagFilter, setTagFilter] = useState(null);
-  const [sourceFilter, setSourceFilter] = useState("All");
-  const [allTags, setAllTags] = useState([]);
-  const [allSources, setAllSources] = useState([]);
-  const [answers, setAnswers] = useState([]);
-  const [isReview, setIsReview] = useState(false);
+  // State quiz (persisted)
+  const {
+    loading,
+    questions,
+    currentIndex,
+    answers,
+    showExplanation,
+    isReview,
+    selected,
+    answer,
+    next,
+    prev,
+    jumpTo,
+    setIsReview,        // paksa Review saat mentok limit
+    setShowExplanation, // disediakan jika nanti dibutuhkan
+  } = useQuizSession({ aircraft, subject });
 
-  // ===== Fetch from Notion API via Netlify function =====
+  // Auth & role
+  const { session, loading: sessionLoading } = useSession();
+  const { subscription, loading: subLoading } = useSubscription();
+  const { isAdmin, loading: profileLoading } = useProfile();
+
+  const status = resolveStatus(session, subscription);
+  const isGuest = status === "guest";
+  const isPro = status === "pro";
+  const isInactive = status === "inactive";
+  const adminOverride = !!isAdmin;
+
+  // Hindari flicker “10 soal” saat profile admin masih loading
+  const blockUntilRoleKnown = !!session && profileLoading;
+
+  // Gating total (guest/inactive = 10; admin/pro = full)
+  const gatedTotal = adminOverride || isPro
+    ? questions.length
+    : Math.min(questions.length, 10);
+
+  // Clamp index tampilan agar tidak melebihi batas gating
+  const viewIndex = Math.min(currentIndex, Math.max(gatedTotal - 1, 0));
+  const isLastByGate = viewIndex >= Math.max(gatedTotal - 1, 0);
+
+  // ===== Analytics =====
   useEffect(() => {
-    fetch(
-      `/.netlify/functions/fetch-notion-questions?aircraft=${aircraft}&subject=${subject}`
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        const shuffled =
-          subject === "all" ? [...data].sort(() => Math.random() - 0.5) : data;
+    logEvent("quiz_view", { aircraft, subject: decodedSubject });
+  }, [aircraft, decodedSubject]);
 
-        setQuestions(shuffled);
-        setFilteredQuestions(shuffled);
-
-        const tags = new Set();
-        const sources = new Set();
-        shuffled.forEach((q) => {
-          q.tags.forEach((t) => tags.add(t));
-          if (q.source) sources.add(q.source);
-        });
-        setAllTags([...tags]);
-        setAllSources(["All", ...sources]);
-      })
-      .catch((err) => console.error("Fetch error:", err));
-  }, [aircraft, subject]);
-
-  // ===== Filter changes =====
   useEffect(() => {
-    const filtered = questions.filter((q) => {
-      const matchLevel =
-        levelFilter === "All" ||
-        q.level.toLowerCase() === levelFilter.toLowerCase();
-      const matchTag = !tagFilter || q.tags.includes(tagFilter);
-      const matchSource = sourceFilter === "All" || q.source === sourceFilter;
-      return matchLevel && matchTag && matchSource;
-    });
-    setFilteredQuestions(filtered);
-    setCurrentIndex(0);
-    setSelected(null);
-    setShowExplanation(false);
-    setAnswers([]);
-    setIsReview(false);
-  }, [levelFilter, tagFilter, sourceFilter, questions]);
+    const q = questions[viewIndex];
+    if (q?.id) logEvent("question_view", { id: q.id, idx: viewIndex });
+  }, [questions, viewIndex]);
 
-  // ===== Handlers =====
-  const handleAnswer = (index) => {
-    setSelected(index);
-    setShowExplanation(true);
-    setAnswers((prev) => {
-      const newAnswers = [...prev];
-      newAnswers[currentIndex] = index;
-      return newAnswers;
-    });
-  };
-
-  const handleNext = () => {
-    if (currentIndex < filteredQuestions.length - 1) {
-      setSelected(null);
-      setShowExplanation(false);
-      setCurrentIndex((prev) => prev + 1);
-    } else {
+  // Jika restore index melewati limit gating → auto Review (kecuali admin/pro)
+  useEffect(() => {
+    if (adminOverride || isPro) return;
+    if (!loading && !isReview && gatedTotal > 0 && currentIndex >= gatedTotal) {
       setIsReview(true);
     }
+  }, [adminOverride, isPro, loading, isReview, currentIndex, gatedTotal, setIsReview]);
+
+  // ===== Slim Banner & Limit Modal =====
+  const bannerKey = `trialBanner:dismiss:${aircraft}:${decodedSubject}`;
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
+
+  useEffect(() => {
+    try { setBannerDismissed(localStorage.getItem(bannerKey) === "1"); } catch {}
+  }, [bannerKey]);
+
+  const dismissBanner = () => {
+    try { localStorage.setItem(bannerKey, "1"); } catch {}
+    setBannerDismissed(true);
+    logEvent("trial_banner_dismiss", { aircraft, subject: decodedSubject });
   };
 
-  if (!filteredQuestions.length)
-    return <div className="p-4">Loading questions...</div>;
+  // Slim banner hanya di awal (Q0–Q1), non-admin/pro, bukan review
+  const shouldShowSlimBanner =
+    !adminOverride &&
+    !isPro &&
+    (isGuest || isInactive) &&
+    !bannerDismissed &&
+    !isReview &&
+    viewIndex <= 1 &&
+    gatedTotal > 0;
 
-  const LevelBadge = ({ level }) => {
-    const color =
-      level === "easy"
-        ? "bg-green-500"
-        : level === "medium"
-        ? "bg-yellow-500"
-        : "bg-red-500";
+  useEffect(() => {
+    if (shouldShowSlimBanner) {
+      logEvent("trial_banner_impression", { aircraft, subject: decodedSubject });
+    }
+  }, [shouldShowSlimBanner, aircraft, decodedSubject]);
+
+  // Munculkan modal saat menyentuh soal terakhir trial & explanation terlihat
+  useEffect(() => {
+    if (!adminOverride && !isPro && (isGuest || isInactive) && isLastByGate && showExplanation) {
+      setLimitModalOpen(true);
+      logEvent("trial_limit_modal_impression", { aircraft, subject: decodedSubject });
+    }
+  }, [adminOverride, isPro, isGuest, isInactive, isLastByGate, showExplanation, aircraft, decodedSubject]);
+
+  // CTA
+  const handleLogin = () => {
+    logEvent("cta_login_click", { aircraft, subject: decodedSubject });
+    window.location.href = "/login";
+  };
+  const handleUpgrade = () => {
+    logEvent("cta_upgrade_click", { aircraft, subject: decodedSubject });
+    window.location.href = "/pricing";
+  };
+
+  // ===== Navigation handlers =====
+  const handleNext = useCallback(() => {
+    if (!(adminOverride || isPro) && isLastByGate) {
+      setIsReview(true);
+      logEvent("session_finish", { total: gatedTotal, mode: "learn" });
+    } else {
+      logEvent("nav_next", { idx: viewIndex });
+      next();
+    }
+  }, [adminOverride, isPro, isLastByGate, gatedTotal, viewIndex, next, setIsReview]);
+
+  const handlePrev = useCallback(() => {
+    logEvent("nav_prev", { idx: viewIndex });
+    prev();
+  }, [viewIndex, prev]);
+
+  // Keyboard N/P
+  useEffect(() => {
+    const onKey = (e) => {
+      const inForm = e.target.closest?.("input,textarea,button,[role='dialog']");
+      if (inForm) return;
+      const k = e.key.toLowerCase();
+      if (k === "n") handleNext();
+      if (k === "p") handlePrev();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleNext, handlePrev]);
+
+  const goBack = () => navigate(`/quiz/${aircraft}`);
+
+  // ===== Loading / Empty =====
+  if (loading || sessionLoading || subLoading || blockUntilRoleKnown) {
     return (
-      <span
-        className={`inline-block px-2 py-1 text-xs rounded text-white ${color}`}
-      >
-        {level}
-      </span>
+      <div className="max-w-3xl mx-auto p-4">
+        <SkeletonQuestion />
+      </div>
     );
-  };
+  }
 
-  const q = filteredQuestions[currentIndex];
-  const correctAnswers = filteredQuestions.filter((q, i) => {
-    const selectedIndex = answers[i];
-    return q.choices[selectedIndex]?.isCorrect;
-  });
-  const percentage = Math.round(
-    (correctAnswers.length / filteredQuestions.length) * 100
-  );
-  const resultColor =
-    percentage >= 80
-      ? "text-green-600"
-      : percentage >= 50
-      ? "text-yellow-500"
-      : "text-red-500";
+  if (!questions.length) {
+    return (
+      <div className="max-w-3xl mx-auto p-4">
+        <button
+          onClick={goBack}
+          className="mb-4 inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          ← Back to Subjects
+        </button>
+        <div className="border rounded-lg p-4 bg-white dark:bg-gray-800">
+          Couldn’t load questions. Try again.
+        </div>
+      </div>
+    );
+  }
 
-  // ===== UI =====
+  const q = questions[viewIndex];
+
+  // Skor untuk review (hanya sampai gatedTotal)
+  const correctCount = questions.slice(0, gatedTotal).reduce((acc, qq, i) => {
+    const pick = answers[i];
+    return acc + (qq?.choices?.[pick]?.isCorrect ? 1 : 0);
+  }, 0);
+
   return (
     <div className="max-w-3xl mx-auto p-4 text-gray-900 dark:text-white">
+      {/* Back */}
       <button
-        onClick={() => (window.location.href = `/quiz/${aircraft}`)}
-        className="mb-4 inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline hover:text-blue-800 dark:hover:text-blue-300"
+        onClick={goBack}
+        className="mb-3 inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
       >
         ← Back to Subjects
       </button>
 
-      <QuizGate total={filteredQuestions.length}>
-        {isReview ? (
-          <>
-            {/* ===== Grade Report ===== */}
-            <div className="mb-8 border p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
-              <h2 className="text-xl font-bold mb-2">Grade Report</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {aircraft.toUpperCase()} - {decodedSubject.toUpperCase()} | Exam
-                Summary
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Correct {correctAnswers.length} of {filteredQuestions.length}{" "}
-                questions
-              </p>
-              <p className={`text-lg font-semibold ${resultColor}`}>
-                {percentage}% {percentage >= 80 ? "Passed" : "Failed"}
-              </p>
-            </div>
+      {/* Slim Banner (awal saja, non-admin/pro) */}
+      {shouldShowSlimBanner && (
+        <div className="mb-3">
+          <QuizBanner
+            variant={isGuest ? "guest" : "inactive"}
+            onLogin={handleLogin}
+            onUpgrade={handleUpgrade}
+            size="slim"
+            onDismiss={dismissBanner}
+          />
+        </div>
+      )}
 
-            {/* ===== Review Mode ===== */}
-            {filteredQuestions.map((question, idx) => {
-              const selectedIdx = answers[idx];
-              const nomor = `N°${String(idx + 1).padStart(3, "0")}`;
-              return (
-                <div
-                  key={idx}
-                  className="mb-6 border p-4 rounded-lg bg-white dark:bg-gray-800"
-                >
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                    {nomor} — ID: {question.id}
-                  </p>
-                  <p className="font-semibold mb-2">
-                    Question {idx + 1} of {filteredQuestions.length}:{" "}
-                    {question.question}
-                  </p>
-                  {question.questionImage && (
-                    <img
-                      src={question.questionImage}
-                      alt="Question"
-                      className="max-h-60 rounded mb-3 border"
-                    />
-                  )}
-
-                  {question.choices.map((choice, i) => {
-                    const isCorrect = choice.isCorrect;
-                    const isSelected = selectedIdx === i;
-                    const base = "px-3 py-2 rounded-md border mb-1";
-                    const style = isCorrect
-                      ? "border-green-500 bg-green-100 dark:bg-green-800"
-                      : isSelected
-                      ? "border-red-500 bg-red-100 dark:bg-red-800"
-                      : "border-gray-300 dark:border-gray-700";
-
-                    return (
-                      <div key={i} className={`${base} ${style}`}>
-                        <strong>{String.fromCharCode(65 + i)}.</strong>{" "}
-                        {choice.text}
-                        {choice.image && (
-                          <img
-                            src={choice.image}
-                            alt={`Choice ${String.fromCharCode(65 + i)}`}
-                            className="max-h-32 rounded my-2 border"
-                          />
-                        )}
-                        <p className="text-xs italic mt-1 text-gray-600 dark:text-gray-300">
-                          {choice.explanation}
-                        </p>
-                        {isSelected && (
-                          <span className="ml-2 italic text-sm">
-                            (Your Answer)
-                          </span>
-                        )}
-                        {isCorrect && (
-                          <span className="ml-2 italic text-sm">(Correct)</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </>
-        ) : (
-          <>
-            {/* ===== Quiz Mode ===== */}
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">
-                {aircraft.toUpperCase()} / {decodedSubject.toUpperCase()} — Quiz
-              </h2>
-              <div className="flex items-center gap-2">
-                <LevelBadge level={q.level.toLowerCase()} />
-                {q.source && (
-                  <span className="text-xs text-gray-500 italic">{q.source}</span>
-                )}
-              </div>
-            </div>
-
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-              N°{String(currentIndex + 1).padStart(3, "0")} — ID: {q.id}
+      {isReview && !(adminOverride || isPro) ? (
+        <>
+          {/* REVIEW HEADER */}
+          <div className="mb-4 border p-4 rounded-lg shadow bg-white dark:bg-gray-800">
+            <h2 className="text-xl font-bold mb-1">Grade Report</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {aircraft.toUpperCase()} - {decodedSubject.toUpperCase()} | Exam Summary
             </p>
-            <h3 className="text-lg font-semibold mb-2">
-              Question {currentIndex + 1} of {filteredQuestions.length}:{" "}
-              {q.question}
-            </h3>
-            {q.questionImage && (
-              <img
-                src={q.questionImage}
-                alt="Question"
-                className="max-h-60 rounded mb-4 border"
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Correct {correctCount} of {gatedTotal} questions
+            </p>
+          </div>
+
+          {/* REVIEW LIST (dibatasi sampai gatedTotal) */}
+          {questions.slice(0, gatedTotal).map((question, idx) => (
+            <QuestionCard
+              key={question.id ?? idx}
+              question={question}
+              index={idx}
+              total={gatedTotal}
+              selected={answers[idx]}
+              showExplanation={true}
+              isReview
+            />
+          ))}
+        </>
+      ) : (
+        <>
+          {/* Header */}
+          <QuizHeader
+            aircraft={aircraft}
+            subject={decodedSubject}
+            currentIndex={viewIndex}
+            total={gatedTotal}
+            level={q.level}
+            source={q.source}
+          />
+
+          {/* Content */}
+          <main role="main" className="pb-20">
+            <QuestionCard
+              question={q}
+              index={viewIndex}
+              total={gatedTotal}
+              selected={selected}
+              onSelect={(i) => answer(i)} // Learn mode → tampilkan explanation
+              showExplanation={showExplanation}
+            />
+
+            {/* Navigator: total = gatedTotal */}
+            <div className="mt-4">
+              <QuestionNavigator
+                total={gatedTotal}
+                currentIndex={viewIndex}
+                answers={answers}
+                onJump={jumpTo}
               />
-            )}
-
-            <div className="space-y-2">
-              {q.choices.map((choice, i) => {
-                const isCorrect = choice.isCorrect;
-                const isSelected = selected === i;
-                const borderColor = !showExplanation
-                  ? "border-gray-300"
-                  : isCorrect
-                  ? "border-green-500 bg-green-100"
-                  : isSelected
-                  ? "border-red-500 bg-red-100"
-                  : "border-gray-200";
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleAnswer(i)}
-                    disabled={showExplanation}
-                    className={`w-full text-left p-3 border ${borderColor} rounded shadow-sm hover:shadow-md transition`}
-                  >
-                    <strong>{String.fromCharCode(65 + i)}.</strong> {choice.text}
-                    {choice.image && (
-                      <img
-                        src={choice.image}
-                        alt={`Choice ${String.fromCharCode(65 + i)}`}
-                        className="max-h-32 rounded my-2 border"
-                      />
-                    )}
-                    {showExplanation && (
-                      <p className="mt-1 text-sm text-gray-600 italic">
-                        {choice.explanation}
-                      </p>
-                    )}
-                  </button>
-                );
-              })}
             </div>
+          </main>
 
-            {showExplanation && (
-              <button
-                onClick={handleNext}
-                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                {currentIndex < filteredQuestions.length - 1
-                  ? "Next Question"
-                  : "Finish & Review"}
-              </button>
-            )}
-          </>
-        )}
-      </QuizGate>
+          {/* Footer Nav */}
+          <QuizFooterNav
+            currentIndex={viewIndex}
+            total={gatedTotal}
+            showExplanation={showExplanation}
+            onNext={handleNext}
+            onPrev={handlePrev}
+            disableNextUntilAnswered
+            hasAnswered={selected !== null}
+          />
+        </>
+      )}
+
+      {/* Modal batas trial (guest/inactive) */}
+      <UpgradeLimitModal
+        open={limitModalOpen}
+        onClose={() => setLimitModalOpen(false)}
+        onLogin={handleLogin}
+        onUpgrade={handleUpgrade}
+        total={gatedTotal}
+      />
     </div>
   );
 }

@@ -1,15 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDrag } from "@use-gesture/react";
+import { useLocation, useNavigate } from "react-router-dom";
+
 import Navbar from "../components/ui/Navbar";
 import Sidebar from "../components/ui/Sidebar";
 import Footer from "../components/Footer";
 import LogoutButton from "@/components/LogoutButton";
-import { useProfile } from "@/hooks/useProfile"; // ✅ untuk ambil email & role
+
+import { useProfile } from "@/hooks/useProfile";                 // { profile, loading, error }
+import { useSession as _useSession } from "@/hooks/useSession";  // { session, loading }
+import { isForceGuest } from "@/lib/guestMode";
+
+const useSession = typeof _useSession === "function" ? _useSession : () => ({ session: null, loading: false });
 
 function MainLayout({ children }) {
   const [collapsed, setCollapsed] = useState(true);
-  const { profile } = useProfile();
+  const { profile, loading: loadingProfile } = useProfile();
+  const { session, loading: loadingSession } = useSession();
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const forcedGuest = isForceGuest?.() ?? false;
+  const isLoggedIn = !!session && !forcedGuest;
 
   const openSidebar = () => setCollapsed(false);
   const closeSidebar = () => setCollapsed(true);
@@ -17,14 +31,7 @@ function MainLayout({ children }) {
   // Swipe kanan → buka sidebar (mobile only)
   const bindGesture = useDrag(
     ({ movement: [mx], direction: [xDir], down }) => {
-      if (
-        !down &&
-        xDir > 0 &&
-        mx > 50 &&
-        collapsed &&
-        typeof window !== "undefined" &&
-        window.innerWidth < 768
-      ) {
+      if (!down && xDir > 0 && mx > 50 && collapsed && typeof window !== "undefined" && window.innerWidth < 768) {
         openSidebar();
       }
     },
@@ -40,6 +47,14 @@ function MainLayout({ children }) {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // CTA auth untuk guest
+  const goLogin = () => navigate("/login", { state: { from: location }, replace: false });
+  const goSignup = () => navigate("/signup", { state: { from: location }, replace: false });
+
+  // Derive display for header (aman saat guest)
+  const userEmail = session?.user?.email ?? null;
+  const role = useMemo(() => (profile?.role ?? (isLoggedIn ? "user" : null)), [profile, isLoggedIn]);
 
   return (
     <div
@@ -67,23 +82,46 @@ function MainLayout({ children }) {
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 z-10">
-        {/* Header */}
+        {/* Top Bar */}
         <header className="flex justify-between items-center px-6 py-3 bg-white/80 dark:bg-gray-800/80 shadow-md backdrop-blur-md">
           <Navbar toggleSidebar={() => setCollapsed(!collapsed)} />
 
-          {/* user info + logout */}
+          {/* Right area: user info / auth CTAs */}
           <div className="flex items-center gap-4">
-            {profile ? (
-              <div className="text-right">
-                <p className="text-sm font-medium">{profile.email}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {profile.role === "admin" ? "Admin" : "User"}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Loading...</p>
+            {(loadingProfile || loadingSession) && (
+              <p className="text-sm text-gray-500">Loading…</p>
             )}
-            <LogoutButton />
+
+            {/* Logged-in */}
+            {isLoggedIn && (
+              <div className="text-right">
+                <p className="text-sm font-medium">{userEmail}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{role === "admin" ? "Admin" : "User"}</p>
+              </div>
+            )}
+
+            {/* Guest view (no session OR forced guest) */}
+            {!isLoggedIn && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={goLogin}
+                  className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                  aria-label="Login"
+                >
+                  Login
+                </button>
+                <button
+                  onClick={goSignup}
+                  className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                  aria-label="Sign up"
+                >
+                  Sign up
+                </button>
+              </div>
+            )}
+
+            {/* Logout hanya saat sudah login */}
+            {isLoggedIn && <LogoutButton />}
           </div>
         </header>
 
