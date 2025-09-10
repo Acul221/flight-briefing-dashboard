@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/generate-sitemap.cjs &&vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "find:jsx-tests": "node scripts/find-jsx-tests.js",

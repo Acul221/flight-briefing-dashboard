@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import Breadcrumb from "../components/ui/Breadcrumb";
 import Header from "../components/ui/Header";
 import WeatherSummary from "../components/ui/WeatherSummary";
-import RACSnapshotWidget from "../components/ui/RACSnapshotWidget";
 import NewsWidget from "../components/NewsWidget";
 import CompactWxAlert from "../components/ui/CompactWxAlert";
 import WindyWidget from "../components/ui/WindyWidget";
@@ -127,10 +126,12 @@ function DashboardPage() {
             <INASIAMWidget onFullscreen={() => setFullscreenWidget("inasiam")} />
           </div>
 
-          <RACSnapshotWidget />
           <WeatherSummary />
 
-          <FullscreenModal isOpen={fullscreenWidget !== null} onClose={() => setFullscreenWidget(null)}>
+          <FullscreenModal
+            isOpen={fullscreenWidget !== null}
+            onClose={() => setFullscreenWidget(null)}
+          >
             {fullscreenWidget === "windy" && <WindyWidget fullscreen key="windy-full" />}
             {fullscreenWidget === "inasiam" && <INASIAMWidget fullscreen key="inasiam-full" />}
           </FullscreenModal>
@@ -203,3 +204,4 @@ const Section = ({ title, icon, visible, setVisible, children }) => (
 );
 
 export default DashboardPage;
+  

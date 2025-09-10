@@ -1,0 +1,11 @@
+# Allow all crawlers
+User-agent: *
+Allow: /
+
+# Disallow sensitive routes
+Disallow: /admin/
+Disallow: /api/
+Disallow: /dashboard/settings/
+
+# Sitemap location
+Sitemap: https://www.skydeckpro.id/sitemap.xml
