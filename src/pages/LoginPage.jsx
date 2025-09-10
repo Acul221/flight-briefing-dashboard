@@ -8,6 +8,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -25,13 +26,33 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
-      toast.error(`Login gagal: ${error.message}`);
+      toast.error(`Login failed: ${error.message}`);
       return;
     }
 
     if (data?.session) {
-      toast.success("✅ Login berhasil!");
+      toast.success("✅ Login successful!");
       navigate(from, { replace: true });
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email first.");
+      return;
+    }
+    setResetting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: "https://www.skydeckpro.id/reset-password",
+      });
+      if (error) throw error;
+      toast.success("📧 Password reset email sent. Check your inbox.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to send reset email. Please try again.");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -44,7 +65,7 @@ export default function LoginPage() {
       <form onSubmit={handleLogin} className="space-y-4">
         <input
           type="email"
-          placeholder="Email"
+          placeholder="Email address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -58,6 +79,7 @@ export default function LoginPage() {
           className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
         />
+
         <button
           type="submit"
           disabled={loading}
@@ -66,6 +88,18 @@ export default function LoginPage() {
           {loading ? "Logging in…" : "Login"}
         </button>
       </form>
+
+      {/* Forgot password link */}
+      <div className="mt-4 text-center">
+        <button
+          type="button"
+          onClick={handleResetPassword}
+          disabled={resetting}
+          className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+        >
+          {resetting ? "Sending reset email…" : "Forgot Password?"}
+        </button>
+      </div>
     </div>
   );
 }

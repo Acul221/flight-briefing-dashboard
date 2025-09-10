@@ -9,8 +9,6 @@ import BillingPage from "@/pages/Billing";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import { Toaster } from "react-hot-toast";
 
-<Toaster position="top-center" reverseOrder={false} />
-
 // Public & Static
 const DisclaimerPage = lazy(() => import("./pages/DisclaimerPage"));
 const PricingPage = lazy(() => import("./pages/Pricing"));
@@ -59,227 +57,232 @@ const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 
 export default function App() {
   return (
-    <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
-      <Routes>
-        {/* Landing */}
-        <Route path="/" element={<DisclaimerPage />} />
+    <>
+      {/* Toast notifications */}
+      <Toaster position="top-center" reverseOrder={false} />
 
-        {/* Quiz (public) */}
-        <Route
-          path="/quiz"
-          element={
-            <MainLayout>
-              <QuizSelector />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/quiz/:aircraft"
-          element={
-            <MainLayout>
-              <SubjectSelector />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/quiz/:aircraft/:subject"
-          element={
-            <MainLayout>
-              <QuizPage />
-            </MainLayout>
-          }
-        />
+      <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
+        <Routes>
+          {/* Landing */}
+          <Route path="/" element={<DisclaimerPage />} />
 
-        {/* Quiz Editor (admin) */}
-        <Route
-          path="/quiz-editor"
-          element={
-            <AdminRoute>
+          {/* Quiz (public) */}
+          <Route
+            path="/quiz"
+            element={
               <MainLayout>
-                <QuizEditorMaster />
+                <QuizSelector />
               </MainLayout>
-            </AdminRoute>
-          }
-        />
-
-        {/* Static (public) */}
-        <Route
-          path="/pricing"
-          element={
-            <MainLayout>
-              <PricingPage />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/terms"
-          element={
-            <MainLayout>
-              <TermsPage />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/refund-policy"
-          element={
-            <MainLayout>
-              <RefundPolicyPage />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/privacy"
-          element={
-            <MainLayout>
-              <PrivacyPage />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/contact"
-          element={
-            <MainLayout>
-              <ContactPage />
-            </MainLayout>
-          }
-        />
-
-        {/* Tools (public) */}
-        <Route
-          path="/rac-delay"
-          element={
-            <MainLayout>
-              <DelayPage />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/time-tools"
-          element={
-            <MainLayout>
-              <TimeTools />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/flight-computer"
-          element={
-            <MainLayout>
-              <FlightComputerPage />
-            </MainLayout>
-          }
-        />
-
-        {/* OCR & Logbook (public) */}
-        <Route
-          path="/ocr"
-          element={
-            <MainLayout>
-              <OcrPage />
-            </MainLayout>
-          }
-        />
-        <Route path="/ocr-test" element={<OcrTestPage />} />
-        <Route path="/roi-tester" element={<RoiTester />} />
-        <Route path="/print" element={<LogbookPrint />} />
-
-        {/* Auth */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/unauthorized" element={<Unauthorized />} />
-        <Route
-          path="/reset-password"
-          element={
-            <MainLayout>
-              <ResetPasswordPage />
-            </MainLayout>
-          }
-        />
-
-        {/* Dashboard (login opsional) */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute allowGuest>
+            }
+          />
+          <Route
+            path="/quiz/:aircraft"
+            element={
               <MainLayout>
-                <DashboardPage />
+                <SubjectSelector />
               </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Settings (wajib login) */}
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quiz/:aircraft/:subject"
+            element={
               <MainLayout>
-                <SettingsPage />
+                <QuizPage />
               </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/privacy-tools"
-          element={
-            <ProtectedRoute>
+            }
+          />
+
+          {/* Quiz Editor (admin) */}
+          <Route
+            path="/quiz-editor"
+            element={
+              <AdminRoute>
+                <MainLayout>
+                  <QuizEditorMaster />
+                </MainLayout>
+              </AdminRoute>
+            }
+          />
+
+          {/* Static (public) */}
+          <Route
+            path="/pricing"
+            element={
               <MainLayout>
-                <PrivacyToolsPage />
+                <PricingPage />
               </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+            }
+          />
+          <Route
+            path="/terms"
+            element={
+              <MainLayout>
+                <TermsPage />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/refund-policy"
+            element={
+              <MainLayout>
+                <RefundPolicyPage />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/privacy"
+            element={
+              <MainLayout>
+                <PrivacyPage />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/contact"
+            element={
+              <MainLayout>
+                <ContactPage />
+              </MainLayout>
+            }
+          />
 
-        {/* Admin (strict) */}
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminLayout />
-            </AdminRoute>
-          }
-        >
-          <Route index element={<AdminDashboard />} />
-          <Route path="promos" element={<AdminPromos />} />
-          <Route path="users" element={<AdminUsers />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="newsletter" element={<AdminNewsletter />} />
-        </Route>
+          {/* Tools (public) */}
+          <Route
+            path="/rac-delay"
+            element={
+              <MainLayout>
+                <DelayPage />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/time-tools"
+            element={
+              <MainLayout>
+                <TimeTools />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/flight-computer"
+            element={
+              <MainLayout>
+                <FlightComputerPage />
+              </MainLayout>
+            }
+          />
 
-        {/* Payments */}
-        <Route
-          path="/payment-result"
-          element={
-            <MainLayout>
-              <PaymentResult />
-            </MainLayout>
-          }
-        />
+          {/* OCR & Logbook (public) */}
+          <Route
+            path="/ocr"
+            element={
+              <MainLayout>
+                <OcrPage />
+              </MainLayout>
+            }
+          />
+          <Route path="/ocr-test" element={<OcrTestPage />} />
+          <Route path="/roi-tester" element={<RoiTester />} />
+          <Route path="/print" element={<LogbookPrint />} />
 
-        {/* Exam */}
-        <Route
-          path="/exam/:aircraft/:subject"
-          element={
-            <MainLayout>
-              <ExamPage />
-            </MainLayout>
-          }
-        />
+          {/* Auth */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route
+            path="/reset-password"
+            element={
+              <MainLayout>
+                <ResetPasswordPage />
+              </MainLayout>
+            }
+          />
 
-        {/* Billing */}
-        <Route path="/billing" element={<BillingPage />} />
+          {/* Dashboard (login optional) */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute allowGuest>
+                <MainLayout>
+                  <DashboardPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Redirect old routes */}
-        <Route path="/terms-id" element={<Navigate to="/terms" replace />} />
-        <Route
-          path="/refund-policy-id"
-          element={<Navigate to="/refund-policy" replace />}
-        />
-        <Route path="/kontak" element={<Navigate to="/contact" replace />} />
+          {/* Settings (login required) */}
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <SettingsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/privacy-tools"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <PrivacyToolsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
+          {/* Admin (strict) */}
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
+            <Route index element={<AdminDashboard />} />
+            <Route path="promos" element={<AdminPromos />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="newsletter" element={<AdminNewsletter />} />
+          </Route>
+
+          {/* Payments */}
+          <Route
+            path="/payment-result"
+            element={
+              <MainLayout>
+                <PaymentResult />
+              </MainLayout>
+            }
+          />
+
+          {/* Exam */}
+          <Route
+            path="/exam/:aircraft/:subject"
+            element={
+              <MainLayout>
+                <ExamPage />
+              </MainLayout>
+            }
+          />
+
+          {/* Billing */}
+          <Route path="/billing" element={<BillingPage />} />
+
+          {/* Redirect old routes */}
+          <Route path="/terms-id" element={<Navigate to="/terms" replace />} />
+          <Route
+            path="/refund-policy-id"
+            element={<Navigate to="/refund-policy" replace />}
+          />
+          <Route path="/kontak" element={<Navigate to="/contact" replace />} />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 }
