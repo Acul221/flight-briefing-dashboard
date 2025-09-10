@@ -6,6 +6,10 @@ import AdminLayout from "./layouts/AdminLayout";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import AdminRoute from "@/routes/AdminRoute";
 import BillingPage from "@/pages/Billing";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import { Toaster } from "react-hot-toast";
+
+<Toaster position="top-center" reverseOrder={false} />
 
 // Public & Static
 const DisclaimerPage = lazy(() => import("./pages/DisclaimerPage"));
@@ -24,6 +28,7 @@ const Unauthorized = lazy(() => import("./pages/Unauthorized"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const PrivacyToolsPage = lazy(() => import("./pages/PrivacyToolsPage"));
+
 // Quiz & Exam
 const QuizSelector = lazy(() => import("./pages/QuizSelector"));
 const SubjectSelector = lazy(() => import("./pages/SubjectSelector"));
@@ -177,11 +182,19 @@ export default function App() {
         <Route path="/ocr-test" element={<OcrTestPage />} />
         <Route path="/roi-tester" element={<RoiTester />} />
         <Route path="/print" element={<LogbookPrint />} />
-        
+
         {/* Auth */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route
+          path="/reset-password"
+          element={
+            <MainLayout>
+              <ResetPasswordPage />
+            </MainLayout>
+          }
+        />
 
         {/* Dashboard (login opsional) */}
         <Route
@@ -206,7 +219,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        {/* Privacy Tools (wajib login) */}
         <Route
           path="/privacy-tools"
           element={
@@ -217,6 +229,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         {/* Admin (strict) */}
         <Route
           path="/admin"
@@ -252,12 +265,16 @@ export default function App() {
             </MainLayout>
           }
         />
+
         {/* Billing */}
         <Route path="/billing" element={<BillingPage />} />
-        
+
         {/* Redirect old routes */}
         <Route path="/terms-id" element={<Navigate to="/terms" replace />} />
-        <Route path="/refund-policy-id" element={<Navigate to="/refund-policy" replace />} />
+        <Route
+          path="/refund-policy-id"
+          element={<Navigate to="/refund-policy" replace />}
+        />
         <Route path="/kontak" element={<Navigate to="/contact" replace />} />
 
         {/* Fallback */}
