@@ -7,32 +7,22 @@ import toast from "react-hot-toast";
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState("loading"); // loading | ready | success | error
-  const [error, setError] = useState(null);
+  const [ready, setReady] = useState(false);
 
-  // 1) Read token from hash (#access_token=...)
   useEffect(() => {
-    const hash = window.location.hash.substring(1); // remove leading "#"
-    const params = new URLSearchParams(hash);
-    const token = params.get("access_token");
-    const type = params.get("type");
+    // Listen for Supabase recovery event
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setReady(true);
+        toast.success("Please enter your new password.");
+      }
+    });
 
-    if (token && type === "recovery") {
-      supabase.auth.exchangeCodeForSession(window.location.href).then(({ error }) => {
-        if (error) {
-          setError(error.message);
-          setStatus("error");
-        } else {
-          setStatus("ready");
-        }
-      });
-    } else {
-      setStatus("error");
-      setError("Reset token not found. Please request a new reset link.");
-    }
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  // 2) Submit new password
   async function handleSubmit(e) {
     e.preventDefault();
     if (!password || password.length < 6) {
@@ -43,35 +33,16 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       toast.error(`Failed to update password: ${error.message}`);
-      setStatus("error");
     } else {
-      setStatus("success");
-      toast.success("✅ Password has been updated!");
+      toast.success("✅ Password updated successfully!");
       setTimeout(() => navigate("/login"), 2000);
     }
   }
 
-  if (status === "loading") {
+  if (!ready) {
     return (
       <div className="max-w-md mx-auto mt-16 text-center">
         <p className="text-gray-600 dark:text-gray-300">Verifying reset link...</p>
-      </div>
-    );
-  }
-
-  if (status === "error") {
-    return (
-      <div className="max-w-md mx-auto mt-16 p-6 bg-red-100 text-red-700 rounded-xl shadow">
-        <h1 className="text-lg font-bold mb-2">Reset Failed</h1>
-        <p>{error}</p>
-      </div>
-    );
-  }
-
-  if (status === "success") {
-    return (
-      <div className="max-w-md mx-auto mt-16 p-6 bg-green-100 text-green-700 rounded-xl shadow">
-        <p>Password successfully updated. Redirecting to login...</p>
       </div>
     );
   }
