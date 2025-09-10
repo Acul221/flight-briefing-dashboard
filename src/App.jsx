@@ -1,6 +1,6 @@
 // src/App.jsx
-import React, { Suspense, lazy } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { Suspense, lazy, useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import ProtectedRoute from "@/routes/ProtectedRoute";
@@ -55,11 +55,25 @@ const AdminNewsletter = lazy(() => import("./pages/admin/AdminNewsletter"));
 // Payments
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 
+/* Debug helper: log route changes */
+function RouteDebugger() {
+  const location = useLocation();
+
+  useEffect(() => {
+    console.log("[Route Change]", location.pathname + location.search + location.hash);
+  }, [location]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <>
       {/* Toast notifications */}
       <Toaster position="top-center" reverseOrder={false} />
+
+      {/* Debug: log every route change */}
+      <RouteDebugger />
 
       <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
         <Routes>

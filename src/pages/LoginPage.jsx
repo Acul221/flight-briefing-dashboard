@@ -1,5 +1,5 @@
 // src/pages/LoginPage.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
@@ -14,9 +14,26 @@ export default function LoginPage() {
   const location = useLocation();
   const from = location.state?.from?.pathname || "/dashboard";
 
+  /* ---------------- Debug listener ---------------- */
+  useEffect(() => {
+    console.log("[LoginPage] Mounted. Listening to Supabase auth events...");
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[Supabase Auth Event]", event, session);
+    });
+
+    return () => {
+      console.log("[LoginPage] Unmounted. Cleaning up listener.");
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  /* ---------------- Login handler ---------------- */
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
+
+    console.log("[LoginPage] Attempting login with email:", email);
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -26,22 +43,27 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
+      console.error("[LoginPage] Login failed:", error);
       toast.error(`Login failed: ${error.message}`);
       return;
     }
 
     if (data?.session) {
+      console.log("[LoginPage] Login successful, session:", data.session);
       toast.success("✅ Login successful!");
       navigate(from, { replace: true });
     }
   };
 
+  /* ---------------- Reset password ---------------- */
   const handleResetPassword = async () => {
     if (!email) {
       toast.error("Please enter your email first.");
       return;
     }
     setResetting(true);
+    console.log("[LoginPage] Sending reset password email to:", email);
+
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: "https://www.skydeckpro.id/reset-password",
@@ -49,13 +71,14 @@ export default function LoginPage() {
       if (error) throw error;
       toast.success("📧 Password reset email sent. Check your inbox.");
     } catch (err) {
-      console.error(err);
+      console.error("[LoginPage] Failed to send reset email:", err);
       toast.error("Failed to send reset email. Please try again.");
     } finally {
       setResetting(false);
     }
   };
 
+  /* ---------------- UI ---------------- */
   return (
     <div className="max-w-md mx-auto mt-16 p-6 bg-white dark:bg-gray-900 rounded-2xl shadow-lg">
       <h1 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-gray-100">

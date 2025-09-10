@@ -10,8 +10,12 @@ export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Listen for Supabase recovery event
+    // Debug: log when component mounts
+    console.log("[ResetPasswordPage] Mounted. Waiting for Supabase recovery event...");
+
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[Supabase Auth Event]", event, session);
+
       if (event === "PASSWORD_RECOVERY") {
         setReady(true);
         toast.success("Please enter your new password.");
@@ -19,6 +23,7 @@ export default function ResetPasswordPage() {
     });
 
     return () => {
+      console.log("[ResetPasswordPage] Unmounted. Cleaning up listener.");
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -30,11 +35,15 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    console.log("[ResetPasswordPage] Submitting new password...");
+
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
+      console.error("[ResetPasswordPage] Failed to update password:", error);
       toast.error(`Failed to update password: ${error.message}`);
     } else {
       toast.success("✅ Password updated successfully!");
+      console.log("[ResetPasswordPage] Password updated. Redirecting to login...");
       setTimeout(() => navigate("/login"), 2000);
     }
   }
