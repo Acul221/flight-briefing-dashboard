@@ -8,3 +8,15 @@ targetPort = 5173                 # 🚀 Port Vite Dev Server (local)
 [functions]
 node_bundler = "esbuild"          # ⚙️ Netlify akan bundle function dengan esbuild (wajib untuk ES Modules)
 directory = "netlify/functions"
+
+# 🔥 Redirects untuk React Router (SPA)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# ⚡ Tambahan caching untuk assets (opsional, biar lebih cepat)
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
