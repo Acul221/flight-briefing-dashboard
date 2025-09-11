@@ -1,7 +1,10 @@
-// /netlify/functions/send-email.js
-import fetch from "node-fetch";
+// netlify/functions/send-email.js
+import { Resend } from "resend";
 
-export const handler = async (event) => {
+const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_FROM = "SkyDeckPro <noreply@skydeckpro.id>";
+
+export async function handler(event) {
   try {
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, body: "Method Not Allowed" };
@@ -13,38 +16,22 @@ export const handler = async (event) => {
       return { statusCode: 400, body: "Missing required fields" };
     }
 
-    console.log("ENV KEY:", process.env.RESEND_API_KEY?.slice(0, 10));
-
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "onboarding@resend.dev", // ✅ default Resend sender (aman untuk test)
-        to,
-        subject,
-        html,
-      }),
+    const data = await resend.emails.send({
+      from: EMAIL_FROM,
+      to,
+      subject,
+      html,
     });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      console.error("❌ Resend error:", data);
-      return {
-        statusCode: res.status,
-        body: JSON.stringify({ error: data }),
-      };
-    }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ success: true, id: data.id }),
+      body: JSON.stringify({ success: true, data }),
     };
   } catch (err) {
-    console.error("❌ Function error:", err);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    console.error("❌ send-email error:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message }),
+    };
   }
-};
+}

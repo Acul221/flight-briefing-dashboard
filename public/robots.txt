@@ -1,11 +1,15 @@
-# Allow all crawlers
+# ✅ Allow all search engine crawlers
 User-agent: *
 Allow: /
 
-# Disallow sensitive routes
+# 🚫 Block sensitive or private routes
 Disallow: /admin/
 Disallow: /api/
 Disallow: /dashboard/settings/
 
-# Sitemap location
+# 📌 Explicitly block temporary routes (optional)
+Disallow: /login/
+Disallow: /signup/
+
+# 📍 Sitemap location
 Sitemap: https://www.skydeckpro.id/sitemap.xml

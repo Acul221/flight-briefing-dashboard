@@ -1,13 +1,31 @@
 [build]
-functions = "netlify/functions"   # 📦 Folder untuk backend functions
+functions = "netlify/functions"   # 📦 Folder backend functions
 publish = "dist"                  # 🧱 Hasil build frontend (Vite)
 
 [dev]
 targetPort = 5173                 # 🚀 Port Vite Dev Server (local)
 
 [functions]
-node_bundler = "esbuild"          # ⚙️ Netlify akan bundle function dengan esbuild (wajib untuk ES Modules)
+node_bundler = "esbuild"          # ⚙️ Netlify akan bundle function dengan esbuild
 directory = "netlify/functions"
+
+# ✅ Pastikan sitemap.xml & robots.txt tidak di-redirect ke React SPA
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "/sitemap.xml"
+  status = 200
+
+[[redirects]]
+  from = "/robots.txt"
+  to = "/robots.txt"
+  status = 200
+
+# 🔁 Redirect Netlify subdomain ke primary domain (www.skydeckpro.id)
+[[redirects]]
+  from = "https://skydeckpro.netlify.app/*"
+  to = "https://www.skydeckpro.id/:splat"
+  status = 301
+  force = true
 
 # 🔥 Redirects untuk React Router (SPA)
 [[redirects]]
@@ -15,7 +33,7 @@ directory = "netlify/functions"
   to = "/index.html"
   status = 200
 
-# ⚡ Tambahan caching untuk assets (opsional, biar lebih cepat)
+# ⚡ Caching untuk assets (biar lebih cepat)
 [[headers]]
   for = "/assets/*"
   [headers.values]
