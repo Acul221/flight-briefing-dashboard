@@ -40,7 +40,7 @@
     "openai": "^5.20.1",
     "parse-multipart-data": "^1.5.0",
     "pdf-parse": "^1.1.1",
-    "pdfkit": "^0.17.2",
+    "pdfkit": "^0.13.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-helmet-async": "^2.0.5",
