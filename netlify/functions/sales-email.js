@@ -21,11 +21,11 @@ export default async (req) => {
   };
 
   try {
-    // 1. Ambil payload
+    // 1. Get payload
     const { user_id } = await req.json();
     logEntry.user_id = user_id;
 
-    // 2. Ambil data user dari Supabase
+    // 2. Fetch user profile from Supabase
     const { data: user, error: profileError } = await supabase
       .from("profiles")
       .select("email, full_name")
@@ -33,36 +33,51 @@ export default async (req) => {
       .single();
 
     if (profileError) throw profileError;
+    if (!user?.email) throw new Error("User email not found");
     logEntry.email = user.email;
 
-    // 3. Generate teks email dengan OpenAI
+    // 3. Generate upsell email text with OpenAI
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content:
-            "You are a sales assistant for SkyDeckPro. Write a short, friendly upsell email in Indonesian.",
+          content: `
+You are a SkyDeckPro sales assistant. 
+Write a short, persuasive upsell email in **english**. 
+Rules:
+- Tone: friendly, supportive, professional (not hard-sell).
+- Mention user by their first name if available.
+- Highlight 1–2 clear Pro benefits (e.g., unlimited quizzes, 1000+ questions, detailed explanations, personal analytics, exclusive pilot community).
+- Apply Pro Teaser psychology:
+   * Loss aversion → remind progress or insights may be lost without Pro.
+   * Curiosity gap → detailed quiz explanations are locked for free users.
+   * FOMO → other pilots already enjoy Pro features.
+   * Anticipated reward → certificates, analytics, smoother training.
+- Keep it concise: max 3 short paragraphs (<150 words).
+- End with a clear CTA: “Upgrade ke SkyDeckPro Pro 🔓”.
+          `,
         },
         {
           role: "user",
-          content: `User name: ${user.full_name}. Mereka sudah mencapai limit kuis gratis.`,
+          content: `User name: ${user.full_name}. They have already reached the free quiz limit.`,
         },
       ],
       max_tokens: 200,
     });
 
-    const emailText = aiResponse.choices[0].message.content;
+    const emailText = aiResponse.choices?.[0]?.message?.content?.trim();
+    if (!emailText) throw new Error("Failed to generate email content");
 
-    // 4. Kirim email via Resend
+    // 4. Send email via Resend
     await resend.emails.send({
       from: "SkyDeckPro <noreply@skydeckpro.id>",
       to: user.email,
       subject: "Upgrade ke SkyDeckPro Pro 🔓",
-      html: `<p>${emailText}</p>`,
+      html: `<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.5;">${emailText}</div>`,
     });
 
-    // 5. Simpan log sukses
+    // 5. Save success log
     logEntry.status = "sent";
     await supabase.from("email_logs").insert(logEntry);
 
@@ -71,12 +86,12 @@ export default async (req) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    // 6. Log error ke Supabase
+    // 6. Log error to Supabase
     logEntry.error_message = err.message;
     try {
       await supabase.from("email_logs").insert(logEntry);
     } catch (e) {
-      console.error("Gagal simpan log error:", e.message);
+      console.error("Failed to save error log:", e.message);
     }
 
     return new Response(JSON.stringify({ error: err.message }), {

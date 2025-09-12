@@ -55,6 +55,9 @@ const AdminNewsletter = lazy(() => import("./pages/admin/AdminNewsletter"));
 // Payments
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
 
+// Voucher
+const RedeemVoucherPage = lazy(() => import("./pages/RedeemVoucherPage"));
+
 /* Debug helper: log route changes */
 function RouteDebugger() {
   const location = useLocation();
@@ -72,7 +75,7 @@ export default function App() {
       {/* Toast notifications */}
       <Toaster position="top-center" reverseOrder={false} />
 
-      {/* Debug: log every route change */}
+      {/* Debug: log every route change (optional, bisa dihapus di production) */}
       <RouteDebugger />
 
       <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
@@ -103,6 +106,18 @@ export default function App() {
               <MainLayout>
                 <QuizPage />
               </MainLayout>
+            }
+          />
+
+          {/* Voucher (login required) */}
+          <Route
+            path="/redeem"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <RedeemVoucherPage />
+                </MainLayout>
+              </ProtectedRoute>
             }
           />
 
