@@ -1,3 +1,4 @@
+// netlify/functions/cfo-report-pdf.js
 import { createClient } from "@supabase/supabase-js";
 import PDFDocument from "pdfkit";
 import path from "path";
@@ -6,8 +7,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE
 );
-
-const __dirname = path.resolve();
 
 export async function handler(event, context) {
   try {
@@ -61,11 +60,19 @@ export async function handler(event, context) {
     // 🔹 Generate PDF
     const doc = new PDFDocument({ margin: 40 });
 
-    // Register font Roboto
-    doc.registerFont("Regular", path.join(__dirname, "netlify/functions/fonts/Roboto-Regular.ttf"));
-    doc.registerFont("Bold", path.join(__dirname, "netlify/functions/fonts/Roboto-Bold.ttf"));
-    doc.registerFont("Medium", path.join(__dirname, "netlify/functions/fonts/Roboto-Medium.ttf"));
-    doc.registerFont("Italic", path.join(__dirname, "netlify/functions/fonts/Roboto-Italic.ttf"));
+    // Path font
+    const fontPath = path.join(process.cwd(), "netlify/functions/fonts");
+    console.log("[cfo-report-pdf] Font path:", fontPath);
+
+    // Register fonts (pastikan file ada di folder netlify/functions/fonts)
+    try {
+      doc.registerFont("Regular", path.join(fontPath, "Roboto-Regular.ttf"));
+      doc.registerFont("Bold", path.join(fontPath, "Roboto-Bold.ttf"));
+      doc.registerFont("Medium", path.join(fontPath, "Roboto-Medium.ttf"));
+      doc.registerFont("Italic", path.join(fontPath, "Roboto-Italic.ttf"));
+    } catch (fontErr) {
+      console.error("[cfo-report-pdf] Font register error:", fontErr);
+    }
 
     const buffers = [];
     doc.on("data", (chunk) => buffers.push(chunk));

@@ -2,6 +2,7 @@
 import fetch from "node-fetch";
 import { createClient } from "@supabase/supabase-js";
 
+// Init Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE
@@ -20,6 +21,7 @@ export async function handler(event) {
       };
     }
 
+    // Call PSI API
     const psiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(
       urlParam
     )}&key=${apiKey}&strategy=${strategy}`;
@@ -31,6 +33,7 @@ export async function handler(event) {
 
     const data = await response.json();
 
+    // Extract metrics
     const fieldMetrics = data.loadingExperience?.metrics || {};
     const audits = data.lighthouseResult?.audits || {};
     const performanceScore = data.lighthouseResult?.categories?.performance?.score || null;
@@ -59,8 +62,8 @@ export async function handler(event) {
       performance_score: performanceScore,
     };
 
-    // Simpan ke Supabase
-    const { error } = await supabase.from("psi_reports").insert(result);
+    // Save to Supabase
+    const { error } = await supabase.from("psi_reports").insert([result]);
     if (error) {
       console.error("[psi-report] DB insert error:", error);
     }

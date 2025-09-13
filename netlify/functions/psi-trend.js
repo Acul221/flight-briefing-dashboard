@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
-export async function handler(event) {
+export async function handler() {
   try {
     const { data, error } = await supabase.rpc("get_psi_trend");
     if (error) throw error;
