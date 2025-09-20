@@ -1,7 +1,7 @@
 // src/admin/QuestionFormFull.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient"; // bukan default
-import useSubmitQuestion from "../hooks/useSubmitQuestion";
+import useSubmitQuestion from "@/hooks/useSubmitQuestion";
 
 // --- Helper: ambil kategori dari API function (kalau public), fallback ke Supabase query dengan RLS public read ---
 async function fetchCategoryTreeViaFunction() {

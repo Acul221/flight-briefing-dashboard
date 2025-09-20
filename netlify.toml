@@ -9,13 +9,6 @@ targetPort = 5173
 node_bundler = "esbuild"
 directory = "netlify/functions"
 
-# ✅ Allow functions (jangan di-redirect ke React)
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-  force = true
-
 # ✅ Sitemap dan robots.txt tetap statis
 [[redirects]]
   from = "/sitemap.xml"

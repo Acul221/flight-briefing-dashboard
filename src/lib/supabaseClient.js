@@ -5,9 +5,12 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase env variables are missing!");
+  console.warn("Supabase env variables are missing (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { persistSession: true, detectSessionInUrl: true },
+  auth: {
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
 });

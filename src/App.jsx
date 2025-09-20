@@ -46,14 +46,14 @@ const RoiTester    = lazy(() => import("./pages/RoiTester"));
 const LogbookPrint = lazy(() => import("./pages/LogbookPrint"));
 
 /* ---------------- Admin ---------------- */
-const AdminDashboard   = lazy(() => import("./pages/AdminDashboard"));
-const AdminPromos      = lazy(() => import("./pages/AdminPromos"));
-const AdminUsers       = lazy(() => import("./pages/admin/AdminUsers"));
-const AdminOrders      = lazy(() => import("./pages/admin/AdminOrders"));
-const AdminNewsletter  = lazy(() => import("./pages/admin/AdminNewsletter"));
-const AdminCategories  = lazy(() => import("./pages/admin/CategoryManager"));
-const AdminQuestionEditor = lazy(() => import("./pages/admin/QuestionEditor")); // NEW
-const AdminQuestionForm = lazy(() => import("@/components/admin/QuestionFormFull"));      // form
+const AdminDashboard      = lazy(() => import("./pages/AdminDashboard"));
+const AdminPromos         = lazy(() => import("./pages/AdminPromos"));
+const AdminUsers          = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminOrders         = lazy(() => import("./pages/admin/AdminOrders"));
+const AdminNewsletter     = lazy(() => import("./pages/admin/AdminNewsletter"));
+const AdminCategories     = lazy(() => import("./pages/admin/CategoryManager"));
+const AdminQuestionEditor = lazy(() => import("./pages/admin/QuestionEditor")); // list
+const AdminQuestionForm   = lazy(() => import("@/components/admin/QuestionFormFull")); // form create/edit
 
 /* ---------------- Payments ---------------- */
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
@@ -73,10 +73,7 @@ function RouteDebugger() {
 export default function App() {
   return (
     <>
-      {/* Toast notifications */}
       <Toaster position="top-center" reverseOrder={false} />
-
-      {/* Debug: log every route change (hapus jika tidak perlu) */}
       <RouteDebugger />
 
       <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
@@ -122,7 +119,7 @@ export default function App() {
             }
           />
 
-          {/* Quiz Editor (admin) */}
+          {/* Quiz Editor (legacy admin tool) */}
           <Route
             path="/quiz-editor"
             element={
@@ -147,10 +144,10 @@ export default function App() {
           <Route path="/flight-computer" element={<MainLayout><FlightComputerPage /></MainLayout>} />
 
           {/* OCR & Logbook (public) */}
-          <Route path="/ocr"       element={<MainLayout><OcrPage /></MainLayout>} />
-          <Route path="/ocr-test"  element={<OcrTestPage />} />
+          <Route path="/ocr"        element={<MainLayout><OcrPage /></MainLayout>} />
+          <Route path="/ocr-test"   element={<OcrTestPage />} />
           <Route path="/roi-tester" element={<RoiTester />} />
-          <Route path="/print"     element={<LogbookPrint />} />
+          <Route path="/print"      element={<LogbookPrint />} />
 
           {/* Auth */}
           <Route path="/login"    element={<LoginPage />} />
@@ -209,14 +206,16 @@ export default function App() {
             }
           >
             <Route index element={<AdminDashboard />} />
-            <Route path="promos"     element={<AdminPromos />} />
-            <Route path="users"      element={<AdminUsers />} />
-            <Route path="orders"     element={<AdminOrders />} />
-            <Route path="newsletter" element={<AdminNewsletter />} />
-            <Route path="categories" element={<AdminCategories />} />
-            <Route path="questions"  element={<AdminQuestionEditor />} /> {/* NEW */}
-            <Route path="questions/new" element={<AdminQuestionForm />} /> {/* NEW */}
-            <Route path="questions/:id" element={<AdminQuestionForm />} />
+            <Route path="promos"      element={<AdminPromos />} />
+            <Route path="users"       element={<AdminUsers />} />
+            <Route path="orders"      element={<AdminOrders />} />
+            <Route path="newsletter"  element={<AdminNewsletter />} />
+            <Route path="categories"  element={<AdminCategories />} />
+
+            {/* Questions */}
+            <Route path="questions"       element={<AdminQuestionEditor />} />
+            <Route path="questions/new"   element={<AdminQuestionForm />} />
+            <Route path="questions/:id"   element={<AdminQuestionForm />} />
           </Route>
 
           {/* Payments */}
@@ -243,9 +242,9 @@ export default function App() {
           <Route path="/billing" element={<BillingPage />} />
 
           {/* Redirect old routes */}
-          <Route path="/terms-id"          element={<Navigate to="/terms" replace />} />
-          <Route path="/refund-policy-id"  element={<Navigate to="/refund-policy" replace />} />
-          <Route path="/kontak"            element={<Navigate to="/contact" replace />} />
+          <Route path="/terms-id"         element={<Navigate to="/terms" replace />} />
+          <Route path="/refund-policy-id" element={<Navigate to="/refund-policy" replace />} />
+          <Route path="/kontak"           element={<Navigate to="/contact" replace />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
