@@ -2,7 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-// ✅ gunakan SUPABASE_URL (bukan VITE_SUPABASE_URL, karena ini server-side)
+// ✅ gunakan SUPABASE_URL dan SUPABASE_SERVICE_ROLE (server-side only)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE
@@ -42,34 +42,51 @@ export async function handler(event) {
         </p>
       `;
 
-      // ✅ kirim email
-      await resend.emails.send({
-        from: "SkyDeckPro <newsletter@skydeckpro.id>",
-        to: [userEmail],
-        subject,
-        html: finalHtml,
-      });
+      try {
+        // ✅ kirim email via Resend
+        await resend.emails.send({
+          from: "SkyDeckPro <newsletter@skydeckpro.id>",
+          to: [userEmail],
+          subject,
+          html: finalHtml,
+        });
 
-      // ✅ insert log ke Supabase
-      const { error } = await supabase.from("newsletter_logs").insert({
-        campaign_id: campaignId,
-        user_id: userId,
-        email: userEmail,
-        sent_at: new Date().toISOString(),
-      });
+        // ✅ log sukses ke Supabase
+        const { error: insertError } = await supabase
+          .from("newsletter_logs")
+          .insert({
+            newsletter_id: campaignId, // ✅ pakai kolom yang benar
+            user_id: userId,
+            email: userEmail,
+            status: "success",
+            sent_at: new Date().toISOString(),
+          });
 
-      if (error) {
-        console.error("❌ Supabase insert error:", error.message);
-      } else {
-        console.log("✅ Supabase log inserted:", {
-          campaignId,
-          userId,
-          userEmail,
+        if (insertError) {
+          console.error("❌ Supabase insert error:", insertError.message);
+        } else {
+          console.log("✅ Supabase log inserted:", {
+            campaignId,
+            userId,
+            userEmail,
+          });
+        }
+      } catch (sendErr) {
+        console.error("❌ Resend send error:", sendErr.message);
+
+        // ✅ log failed ke Supabase
+        await supabase.from("newsletter_logs").insert({
+          newsletter_id: campaignId,
+          user_id: userId,
+          email: userEmail,
+          status: "failed",
+          error: sendErr.message,
+          sent_at: new Date().toISOString(),
         });
       }
     }
 
-    // ✅ update counter
+    // ✅ update counter di newsletter_campaigns
     const { error: rpcError } = await supabase.rpc("increment_total_sent", {
       cid: campaignId,
       count: recipients.length,
