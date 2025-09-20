@@ -2,14 +2,15 @@
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
+// ✅ gunakan SUPABASE_URL (bukan VITE_SUPABASE_URL, karena ini server-side)
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE // ✅ gunakan service role
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE
 );
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function handler(event, context) {
+export async function handler(event) {
   try {
     if (event.httpMethod !== "POST") {
       return {
@@ -19,7 +20,6 @@ export async function handler(event, context) {
     }
 
     const { subject, html, recipients, campaignId } = JSON.parse(event.body);
-
     if (!subject || !html || !recipients || !campaignId) {
       return {
         statusCode: 400,
@@ -30,6 +30,7 @@ export async function handler(event, context) {
     for (const user of recipients) {
       const userId = user.id;
       const userEmail = user.email;
+
       const unsubLink = `https://skydeckpro.id/.netlify/functions/track-unsub?c=${campaignId}&u=${userId}`;
 
       const finalHtml = `
@@ -41,43 +42,43 @@ export async function handler(event, context) {
         </p>
       `;
 
-      try {
-        // ✅ kirim email
-        await resend.emails.send({
-          from: "SkyDeckPro <newsletter@skydeckpro.id>",
-          to: [userEmail],
-          subject,
-          html: finalHtml,
-        });
+      // ✅ kirim email
+      await resend.emails.send({
+        from: "SkyDeckPro <newsletter@skydeckpro.id>",
+        to: [userEmail],
+        subject,
+        html: finalHtml,
+      });
 
-        // ✅ log success ke Supabase
-        await supabase.from("newsletter_logs").insert({
-          newsletter_id: campaignId, // ⬅️ pakai newsletter_id
-          user_id: userId,
-          email: userEmail,
-          status: "success",
-          sent_at: new Date().toISOString(),
-        });
-      } catch (sendErr) {
-        console.error("Email send failed:", sendErr);
+      // ✅ insert log ke Supabase
+      const { error } = await supabase.from("newsletter_logs").insert({
+        campaign_id: campaignId,
+        user_id: userId,
+        email: userEmail,
+        sent_at: new Date().toISOString(),
+      });
 
-        // ❌ log failed ke Supabase
-        await supabase.from("newsletter_logs").insert({
-          newsletter_id: campaignId,
-          user_id: userId,
-          email: userEmail,
-          status: "failed",
-          error: JSON.stringify(sendErr),
-          sent_at: new Date().toISOString(),
+      if (error) {
+        console.error("❌ Supabase insert error:", error.message);
+      } else {
+        console.log("✅ Supabase log inserted:", {
+          campaignId,
+          userId,
+          userEmail,
         });
       }
     }
 
     // ✅ update counter
-    await supabase.rpc("increment_total_sent", {
+    const { error: rpcError } = await supabase.rpc("increment_total_sent", {
       cid: campaignId,
       count: recipients.length,
     });
+    if (rpcError) {
+      console.error("❌ RPC error:", rpcError.message);
+    } else {
+      console.log("✅ RPC increment_total_sent success");
+    }
 
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
