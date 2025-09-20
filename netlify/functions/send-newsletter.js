@@ -2,31 +2,45 @@
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-// ✅ gunakan SUPABASE_URL dan SUPABASE_SERVICE_ROLE (server-side only)
+// Supabase client
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE // ✅ gunakan service role
 );
 
+// Resend client
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function handler(event) {
   try {
     if (event.httpMethod !== "POST") {
-      return {
-        statusCode: 405,
-        body: JSON.stringify({ error: "Method not allowed" }),
-      };
+      return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
     }
 
     const { subject, html, recipients, campaignId } = JSON.parse(event.body);
+
     if (!subject || !html || !recipients || !campaignId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Missing params" }),
-      };
+      return { statusCode: 400, body: JSON.stringify({ error: "Missing params" }) };
     }
 
+    // --- Pastikan campaign ada di tabel newsletter_campaigns
+    const { error: upsertError } = await supabase
+      .from("newsletter_campaigns")
+      .upsert(
+        {
+          id: campaignId,
+          subject,
+          content: html,
+          sent_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+
+    if (upsertError) {
+      console.error("Campaign upsert error:", upsertError);
+    }
+
+    // --- Kirim email ke setiap user
     for (const user of recipients) {
       const userId = user.id;
       const userEmail = user.email;
@@ -43,7 +57,6 @@ export async function handler(event) {
       `;
 
       try {
-        // ✅ kirim email via Resend
         await resend.emails.send({
           from: "SkyDeckPro <newsletter@skydeckpro.id>",
           to: [userEmail],
@@ -51,58 +64,30 @@ export async function handler(event) {
           html: finalHtml,
         });
 
-        // ✅ log sukses ke Supabase
-        const { error: insertError } = await supabase
-          .from("newsletter_logs")
-          .insert({
-            newsletter_id: campaignId, // ✅ pakai kolom yang benar
-            user_id: userId,
-            email: userEmail,
-            status: "success",
-            sent_at: new Date().toISOString(),
-          });
-
-        if (insertError) {
-          console.error("❌ Supabase insert error:", insertError.message);
-        } else {
-          console.log("✅ Supabase log inserted:", {
-            campaignId,
-            userId,
-            userEmail,
-          });
-        }
-      } catch (sendErr) {
-        console.error("❌ Resend send error:", sendErr.message);
-
-        // ✅ log failed ke Supabase
+        // ✅ Simpan log sukses
         await supabase.from("newsletter_logs").insert({
-          newsletter_id: campaignId,
+          campaign_id: campaignId,
           user_id: userId,
-          email: userEmail,
+          status: "success",
+          sent_at: new Date().toISOString(),
+        });
+      } catch (sendErr) {
+        console.error("Email send error:", sendErr);
+
+        // ❌ Simpan log gagal
+        await supabase.from("newsletter_logs").insert({
+          campaign_id: campaignId,
+          user_id: userId,
           status: "failed",
-          error: sendErr.message,
+          error: JSON.stringify(sendErr),
           sent_at: new Date().toISOString(),
         });
       }
     }
 
-    // ✅ update counter di newsletter_campaigns
-    const { error: rpcError } = await supabase.rpc("increment_total_sent", {
-      cid: campaignId,
-      count: recipients.length,
-    });
-    if (rpcError) {
-      console.error("❌ RPC error:", rpcError.message);
-    } else {
-      console.log("✅ RPC increment_total_sent success");
-    }
-
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
     console.error("send-newsletter error:", err);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Internal error" }),
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: "Internal error" }) };
   }
 }
