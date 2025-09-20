@@ -4,7 +4,7 @@ import { Resend } from "resend";
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE // <- pakai SUPABASE_SERVICE_ROLE
+  process.env.SUPABASE_SERVICE_ROLE // ✅ gunakan service role
 );
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -12,16 +12,21 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 export async function handler(event, context) {
   try {
     if (event.httpMethod !== "POST") {
-      return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
+      return {
+        statusCode: 405,
+        body: JSON.stringify({ error: "Method not allowed" }),
+      };
     }
 
     const { subject, html, recipients, campaignId } = JSON.parse(event.body);
 
     if (!subject || !html || !recipients || !campaignId) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Missing params" }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing params" }),
+      };
     }
 
-    // Loop send per user
     for (const user of recipients) {
       const userId = user.id;
       const userEmail = user.email;
@@ -36,27 +41,50 @@ export async function handler(event, context) {
         </p>
       `;
 
-      await resend.emails.send({
-        from: "SkyDeckPro <newsletter@skydeckpro.id>",
-        to: [userEmail],
-        subject,
-        html: finalHtml,
-      });
+      try {
+        // ✅ kirim email
+        await resend.emails.send({
+          from: "SkyDeckPro <newsletter@skydeckpro.id>",
+          to: [userEmail],
+          subject,
+          html: finalHtml,
+        });
 
-      await supabase.from("newsletter_logs").insert({
-        campaign_id: campaignId,
-        user_id: userId,
-        email: userEmail,
-        sent_at: new Date().toISOString(),
-      });
+        // ✅ log success ke Supabase
+        await supabase.from("newsletter_logs").insert({
+          newsletter_id: campaignId, // ⬅️ pakai newsletter_id
+          user_id: userId,
+          email: userEmail,
+          status: "success",
+          sent_at: new Date().toISOString(),
+        });
+      } catch (sendErr) {
+        console.error("Email send failed:", sendErr);
+
+        // ❌ log failed ke Supabase
+        await supabase.from("newsletter_logs").insert({
+          newsletter_id: campaignId,
+          user_id: userId,
+          email: userEmail,
+          status: "failed",
+          error: JSON.stringify(sendErr),
+          sent_at: new Date().toISOString(),
+        });
+      }
     }
 
-    // Update counter
-    await supabase.rpc("increment_total_sent", { cid: campaignId, count: recipients.length });
+    // ✅ update counter
+    await supabase.rpc("increment_total_sent", {
+      cid: campaignId,
+      count: recipients.length,
+    });
 
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
     console.error("send-newsletter error:", err);
-    return { statusCode: 500, body: JSON.stringify({ error: "Internal error" }) };
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Internal error" }),
+    };
   }
 }

@@ -1,166 +1,168 @@
-// netlify/functions/categories.js  — CommonJS + dynamic import ESM
-const { SUPABASE_URL, SUPABASE_SERVICE_ROLE, SUPABASE_ANON_KEY } = process.env;
+// netlify/functions/categories.js
+/* eslint-disable no-console */
+const { createClient } = require("@supabase/supabase-js");
+
+const {
+  ADMIN_API_SECRET,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE,
+} = process.env;
+
+const sba = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*", // set ke domain kamu jika mau
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-admin-secret",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
   "Content-Type": "application/json",
   "Cache-Control": "no-store",
 };
 
-function json(statusCode, body) {
-  return { statusCode, headers: CORS, body: JSON.stringify(body) };
+function json(status, body) {
+  return { statusCode: status, headers: CORS, body: JSON.stringify(body) };
 }
 
-function buildTree(rows) {
-  const map = new Map();
-  rows.forEach((r) => map.set(r.id, { ...r, children: [] }));
-  const roots = [];
-  rows.forEach((r) => {
-    if (r.parent_id && map.has(r.parent_id)) map.get(r.parent_id).children.push(map.get(r.id));
-    else roots.push(map.get(r.id));
-  });
-  const sortRec = (n) => {
-    if (n.children?.length) {
-      n.children.sort((a, b) => a.order_index - b.order_index);
-      n.children.forEach(sortRec);
-    }
-  };
-  roots.sort((a, b) => a.order_index - b.order_index);
-  roots.forEach(sortRec);
-  return roots;
-}
-
-// cache client admin supaya tidak buat ulang tiap request
-let _admin;
-async function getAdmin() {
-  if (_admin) return _admin;
-  const { createClient } = await import("@supabase/supabase-js");
-  _admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
-  return _admin;
+function slugifyLabel(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80);
 }
 
 async function requireAdmin(event) {
-  const token = event.headers?.authorization?.replace("Bearer ", "");
-  if (!token) return { ok: false, why: "missing_token" };
+  // Option 1: x-admin-secret
+  const xadm = event.headers?.["x-admin-secret"]
+    || event.headers?.["X-Admin-Secret"]
+    || event.headers?.["x-Admin-Secret"];
+  if (xadm && ADMIN_API_SECRET && xadm === ADMIN_API_SECRET) {
+    return { via: "secret" };
+  }
 
-  const { createClient } = await import("@supabase/supabase-js");
-  const asUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
+  // Option 2: Bearer token -> profiles.is_admin
+  const auth = event.headers?.authorization || event.headers?.Authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) throw new Error("forbidden");
 
-  const {
-    data: { user },
-    error: userErr,
-  } = await asUser.auth.getUser();
-  if (userErr || !user) return { ok: false, why: "invalid_token" };
+  const { data: userData, error: e1 } = await sba.auth.getUser(token);
+  if (e1 || !userData?.user) throw new Error("invalid_token");
 
-  const admin = await getAdmin();
-  const { data: prof, error: profErr } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
+  const uid = userData.user.id;
+  const { data: prof, error: e2 } = await sba.from("profiles")
+    .select("is_admin").eq("id", uid).single();
+  if (e2 || !prof?.is_admin) throw new Error("forbidden");
+  return { via: "bearer", uid };
+}
 
-  if (profErr || !prof?.is_admin) return { ok: false, why: "forbidden" };
-  return { ok: true, user };
+function mapPgError(err) {
+  const msg = err?.message || String(err || "");
+  // Uniqueness (root vs child)
+  if (/categories_root_slug_unq/i.test(msg) || /duplicate key.*root/i.test(msg)) {
+    return "duplicate_root_slug: slug pada root sudah dipakai.";
+  }
+  if (/categories_parent_slug_unq/i.test(msg) || /duplicate key.*parent_id/i.test(msg)) {
+    return "duplicate_child_slug: slug pada parent yang sama sudah dipakai.";
+  }
+  // Check constraint pada slug
+  if (/categories_slug_check/i.test(msg)) {
+    return "invalid_slug: slug harus huruf kecil/angka/dash dan tidak boleh kosong.";
+  }
+  return null;
 }
 
 exports.handler = async (event) => {
   try {
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !SUPABASE_ANON_KEY) {
-      console.warn("[categories] Missing Supabase env(s)");
-    }
-
-    if (event.httpMethod === "OPTIONS")
+    if (event.httpMethod === "OPTIONS") {
       return { statusCode: 204, headers: CORS, body: "" };
-
-    const method = event.httpMethod;
-    const admin = await getAdmin();
-
-    if (method === "GET") {
-      const wantTree =
-        event.queryStringParameters?.tree === "1" ||
-        event.queryStringParameters?.tree === "true";
-
-      const { data, error } = await admin
-        .from("categories")
-        .select(
-          "id, slug, label, parent_id, requires_aircraft, pro_only, icon, color, order_index, is_active"
-        )
-        .eq("is_active", true)
-        .order("order_index", { ascending: true });
-
-      if (error) return json(500, { error: error.message });
-      return json(200, { items: wantTree ? buildTree(data) : data });
     }
 
-    if (method === "POST") {
-      const auth = await requireAdmin(event);
-      if (!auth.ok) return json(401, { error: auth.why });
-
-      const body = JSON.parse(event.body || "{}");
-      const payload = {
-        slug: String(body.slug || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9-]+/g, "-")
-          .replace(/^-+|-+$/g, ""),
-        label: body.label,
-        parent_id: body.parent_id || null,
-        requires_aircraft: !!body.requires_aircraft,
-        pro_only: !!body.pro_only,
-        icon: body.icon || null,
-        color: body.color || null,
-        order_index: Number.isFinite(body.order_index) ? body.order_index : 0,
-        is_active: body.is_active ?? true,
-        created_by: auth.user.id,
-      };
-
-      const { data, error } = await admin
-        .from("categories")
-        .insert(payload)
-        .select()
-        .single();
-      if (error) return json(500, { error: error.message });
-      return json(201, { item: data });
+    // GET (list)
+    if (event.httpMethod === "GET") {
+      const url = new URL(event.rawUrl || `http://x${event.path}${event.queryString || ""}`);
+      const limit = Math.min(parseInt(url.searchParams.get("limit") || "200", 10), 500);
+      const order = url.searchParams.get("order") || "label.asc";
+      let q = sba.from("categories").select("*").order(order.split(".")[0], { ascending: !order.endsWith(".desc") }).limit(limit);
+      const parentId = url.searchParams.get("parent_id");
+      if (parentId === "null") q = q.is("parent_id", null);
+      else if (parentId) q = q.eq("parent_id", parentId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return json(200, { items: data || [] });
     }
 
-    if (method === "PATCH") {
-      const auth = await requireAdmin(event);
-      if (!auth.ok) return json(401, { error: auth.why });
+    // Semua write butuh admin
+    await requireAdmin(event);
 
-      const id = event.queryStringParameters?.id;
-      if (!id) return json(400, { error: "missing id" });
-
+    if (event.httpMethod === "POST") {
       const body = JSON.parse(event.body || "{}");
-      delete body.id;
-      const updates = { ...body, updated_at: new Date().toISOString() };
+      const label = String(body.label || "").trim();
+      if (!label) return json(400, { error: "label_required" });
 
-      const { data, error } = await admin
-        .from("categories")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      if (error) return json(500, { error: error.message });
+      const parent_id = body.parent_id || null;
+      const requires_aircraft = !!body.requires_aircraft;
+      const pro_only = !!body.pro_only;
+      const is_active = body.is_active !== false;
+      const order_index = Number(body.order_index || 0);
+
+      // slugify di server!
+      const slug = slugifyLabel(label);
+      if (!slug) return json(400, { error: "invalid_slug: hasil slug kosong" });
+
+      const { data, error } = await sba.from("categories")
+        .insert({ label, slug, parent_id, requires_aircraft, pro_only, is_active, order_index })
+        .select().single();
+      if (error) {
+        const mapped = mapPgError(error);
+        throw new Error(mapped || error.message);
+      }
       return json(200, { item: data });
     }
 
-    if (method === "DELETE") {
-      const auth = await requireAdmin(event);
-      if (!auth.ok) return json(401, { error: auth.why });
+    if (event.httpMethod === "PUT") {
+      const url = new URL(event.rawUrl || `http://x${event.path}${event.queryString || ""}`);
+      const id = url.searchParams.get("id");
+      if (!id) return json(400, { error: "id_required" });
 
-      const id = event.queryStringParameters?.id;
-      if (!id) return json(400, { error: "missing id" });
+      const body = JSON.parse(event.body || "{}");
+      const patch = {};
+      if (typeof body.label === "string") {
+        patch.label = body.label.trim();
+        patch.slug = slugifyLabel(patch.label);
+        if (!patch.slug) return json(400, { error: "invalid_slug: hasil slug kosong" });
+      }
+      if ("parent_id" in body) patch.parent_id = body.parent_id || null;
+      if ("requires_aircraft" in body) patch.requires_aircraft = !!body.requires_aircraft;
+      if ("pro_only" in body) patch.pro_only = !!body.pro_only;
+      if ("is_active" in body) patch.is_active = !!body.is_active;
+      if ("order_index" in body) patch.order_index = Number(body.order_index || 0);
 
-      const { error } = await admin.from("categories").delete().eq("id", id);
-      if (error) return json(500, { error: error.message });
+      const { data, error } = await sba.from("categories")
+        .update(patch).eq("id", id).select().single();
+      if (error) {
+        const mapped = mapPgError(error);
+        throw new Error(mapped || error.message);
+      }
+      return json(200, { item: data });
+    }
+
+    if (event.httpMethod === "DELETE") {
+      const url = new URL(event.rawUrl || `http://x${event.path}${event.queryString || ""}`);
+      const id = url.searchParams.get("id");
+      if (!id) return json(400, { error: "id_required" });
+
+      // Hapus relasi di junction dulu (aman jika tidak ada)
+      await sba.from("question_categories").delete().eq("category_id", id);
+      const { error } = await sba.from("categories").delete().eq("id", id);
+      if (error) throw error;
       return json(200, { ok: true });
     }
 
     return json(405, { error: "method_not_allowed" });
   } catch (e) {
-    return json(500, { error: e.message });
+    console.error("categories error:", e);
+    return json(500, { error: e.message || String(e) });
   }
 };

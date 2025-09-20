@@ -1,15 +1,33 @@
 // src/lib/adminFetch.js
-import { supabase } from "@/lib/apiClient";
+import { supabase } from "@/lib/supabaseClient"; // ganti ke apiClient kalau kamu memang pakai itu
 
-/** Fetch helper untuk endpoint admin (auto Bearer token). */
-export async function adminFetch(path, { method = "POST", body } = {}) {
-  const { data: { session } = {} } = await supabase.auth.getSession();
-  const headers = { "Content-Type": "application/json" };
-  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+/**
+ * Fetch helper untuk endpoint admin (Netlify Functions).
+ * - Auto attach Bearer token Supabase (kalau ada session)
+ * - Fallback x-admin-secret dari env (VITE_ADMIN_API_SECRET)
+ * - Default method: GET
+ */
+export async function adminFetch(path, { method = "GET", body, headers = {} } = {}) {
+  // siapkan header dasar
+  const h = { "Content-Type": "application/json", ...headers };
+
+  // Bearer token dari Supabase (kalau login)
+  try {
+    const { data: { session } = {} } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      h.Authorization = `Bearer ${session.access_token}`;
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  // Fallback secret untuk admin endpoints
+  const secret = import.meta.env.VITE_ADMIN_API_SECRET;
+  if (secret) h["x-admin-secret"] = secret;
 
   const res = await fetch(path, {
     method,
-    headers,
+    headers: h,
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -22,4 +40,3 @@ export async function adminFetch(path, { method = "POST", body } = {}) {
   }
   return json;
 }
-// helper fetch GET dgn bearer supabase (dipakai hooks/*)
