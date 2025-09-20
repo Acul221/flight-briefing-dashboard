@@ -18,7 +18,7 @@ export default function Footer() {
             to="/terms"
             className="hover:underline hover:text-blue-700 dark:hover:text-blue-400"
           >
-            Terms
+            Terms / S&K
           </Link>
           <Link
             to="/refund-policy"
@@ -30,7 +30,7 @@ export default function Footer() {
             to="/privacy"
             className="hover:underline hover:text-blue-700 dark:hover:text-blue-400"
           >
-            Privacy
+            Privacy / Privasi
           </Link>
           <Link
             to="/contact"
@@ -48,16 +48,26 @@ export default function Footer() {
               Download PDF ▾
             </button>
             {open && (
-              <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
                 <ul className="py-2 text-sm">
                   <li>
                     <a
-                      href="/legal/terms.pdf"
+                      href="/legal/terms_id.pdf"
                       target="_blank"
                       rel="noreferrer"
                       className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
-                      Terms (PDF)
+                      Terms (ID)
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="/legal/terms_en.pdf"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Terms (EN)
                     </a>
                   </li>
                   <li>
@@ -67,17 +77,27 @@ export default function Footer() {
                       rel="noreferrer"
                       className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
-                      Refund (PDF)
+                      Refund Policy
                     </a>
                   </li>
                   <li>
                     <a
-                      href="/legal/privacy.pdf"
+                      href="/legal/privacy_id.pdf"
                       target="_blank"
                       rel="noreferrer"
                       className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
-                      Privacy (PDF)
+                      Privacy (ID)
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="/legal/privacy_en.pdf"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Privacy (EN)
                     </a>
                   </li>
                   <li>

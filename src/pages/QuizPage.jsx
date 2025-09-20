@@ -1,6 +1,6 @@
 // src/pages/QuizPage.jsx
-import React, { useEffect, useCallback, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useEffect, useCallback, useState, useMemo } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 import QuizHeader from "@/components/quiz/QuizHeader";
 import QuestionCard from "@/components/quiz/QuestionCard";
@@ -10,16 +10,14 @@ import QuestionNavigator from "@/components/quiz/QuestionNavigator";
 import QuizBanner from "@/components/quiz/QuizBanner";
 import UpgradeLimitModal from "@/components/quiz/UpgradeLimitModal";
 
-import useQuizSession from "@/hooks/useQuizSession";
+import { useQuizRuntime } from "@/hooks/useQuizRuntime";
 import { useSession } from "@/hooks/useSession";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useProfile } from "@/hooks/useProfile";
 import { logEvent } from "@/lib/analytics";
 
-// Map status subscription → 'guest' | 'inactive' | 'pro'
 function resolveStatus(session, subscription) {
   if (!session) return "guest";
-  // Sesuaikan dengan skema tabel subscriptions kamu
   if (
     subscription?.status === "active" ||
     subscription?.plan === "pro" ||
@@ -29,28 +27,32 @@ function resolveStatus(session, subscription) {
   }
   return "inactive";
 }
+function useQuery() {
+  return new URLSearchParams(useLocation().search);
+}
 
-function QuizPage() {
+export default function QuizPage() {
   const navigate = useNavigate();
   const { aircraft, subject } = useParams();
   const decodedSubject = decodeURIComponent(subject || "");
+  const query = useQuery();
 
-  // State quiz (persisted)
-  const {
-    loading,
-    questions,
-    currentIndex,
-    answers,
-    showExplanation,
-    isReview,
-    selected,
-    answer,
-    next,
-    prev,
-    jumpTo,
-    setIsReview,        // paksa Review saat mentok limit
-    setShowExplanation, // disediakan jika nanti dibutuhkan
-  } = useQuizSession({ aircraft, subject });
+  // Difficulty dari URL
+  const levelParam = query.get("level");
+  const difficulty = levelParam
+    ? levelParam.split(",").map((s) => s.trim().toLowerCase())
+    : ["easy", "medium", "hard"];
+
+  // Opsional: include subkategori via ?desc=1
+  const includeDescendants = query.get("desc") === "1";
+
+  // Fetch soal
+  const { items: questions, loading, error } = useQuizRuntime({
+    category_slug: decodedSubject,
+    limit: 50,
+    difficulty,
+    include_descendants: includeDescendants,
+  });
 
   // Auth & role
   const { session, loading: sessionLoading } = useSession();
@@ -62,38 +64,49 @@ function QuizPage() {
   const isPro = status === "pro";
   const isInactive = status === "inactive";
   const adminOverride = !!isAdmin;
-
-  // Hindari flicker “10 soal” saat profile admin masih loading
   const blockUntilRoleKnown = !!session && profileLoading;
 
-  // Gating total (guest/inactive = 10; admin/pro = full)
-  const gatedTotal = adminOverride || isPro
-    ? questions.length
-    : Math.min(questions.length, 10);
+  // Gating
+  const gatedTotal = useMemo(
+    () => (adminOverride || isPro ? questions.length : Math.min(questions.length, 10)),
+    [adminOverride, isPro, questions.length]
+  );
 
-  // Clamp index tampilan agar tidak melebihi batas gating
+  // State
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [isReview, setIsReview] = useState(false);
+
+  // Reset saat subject/level/gating berganti (hindari index out-of-range)
+  useEffect(() => {
+    setCurrentIndex(0);
+    setAnswers({});
+    setShowExplanation(false);
+    setIsReview(false);
+  }, [decodedSubject, aircraft, levelParam, includeDescendants]);
+
   const viewIndex = Math.min(currentIndex, Math.max(gatedTotal - 1, 0));
   const isLastByGate = viewIndex >= Math.max(gatedTotal - 1, 0);
 
-  // ===== Analytics =====
+  // Analytics
   useEffect(() => {
-    logEvent("quiz_view", { aircraft, subject: decodedSubject });
-  }, [aircraft, decodedSubject]);
-
+    logEvent("quiz_view", { aircraft, subject: decodedSubject, difficulty });
+  }, [aircraft, decodedSubject, difficulty]);
   useEffect(() => {
     const q = questions[viewIndex];
     if (q?.id) logEvent("question_view", { id: q.id, idx: viewIndex });
   }, [questions, viewIndex]);
 
-  // Jika restore index melewati limit gating → auto Review (kecuali admin/pro)
+  // Auto review (non-pro)
   useEffect(() => {
     if (adminOverride || isPro) return;
     if (!loading && !isReview && gatedTotal > 0 && currentIndex >= gatedTotal) {
       setIsReview(true);
     }
-  }, [adminOverride, isPro, loading, isReview, currentIndex, gatedTotal, setIsReview]);
+  }, [adminOverride, isPro, loading, isReview, currentIndex, gatedTotal]);
 
-  // ===== Slim Banner & Limit Modal =====
+  // Banner & modal
   const bannerKey = `trialBanner:dismiss:${aircraft}:${decodedSubject}`;
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
@@ -101,14 +114,11 @@ function QuizPage() {
   useEffect(() => {
     try { setBannerDismissed(localStorage.getItem(bannerKey) === "1"); } catch {}
   }, [bannerKey]);
-
   const dismissBanner = () => {
     try { localStorage.setItem(bannerKey, "1"); } catch {}
     setBannerDismissed(true);
     logEvent("trial_banner_dismiss", { aircraft, subject: decodedSubject });
   };
-
-  // Slim banner hanya di awal (Q0–Q1), non-admin/pro, bukan review
   const shouldShowSlimBanner =
     !adminOverride &&
     !isPro &&
@@ -123,8 +133,6 @@ function QuizPage() {
       logEvent("trial_banner_impression", { aircraft, subject: decodedSubject });
     }
   }, [shouldShowSlimBanner, aircraft, decodedSubject]);
-
-  // Munculkan modal saat menyentuh soal terakhir trial & explanation terlihat
   useEffect(() => {
     if (!adminOverride && !isPro && (isGuest || isInactive) && isLastByGate && showExplanation) {
       setLimitModalOpen(true);
@@ -142,38 +150,22 @@ function QuizPage() {
     window.location.href = "/pricing";
   };
 
-  // ===== Navigation handlers =====
+  // Navigation
   const handleNext = useCallback(() => {
     if (!(adminOverride || isPro) && isLastByGate) {
       setIsReview(true);
       logEvent("session_finish", { total: gatedTotal, mode: "learn" });
     } else {
-      logEvent("nav_next", { idx: viewIndex });
-      next();
+      setCurrentIndex((i) => Math.min(i + 1, questions.length - 1));
+      setShowExplanation(false);
     }
-  }, [adminOverride, isPro, isLastByGate, gatedTotal, viewIndex, next, setIsReview]);
-
+  }, [adminOverride, isPro, isLastByGate, gatedTotal, questions.length]);
   const handlePrev = useCallback(() => {
-    logEvent("nav_prev", { idx: viewIndex });
-    prev();
-  }, [viewIndex, prev]);
-
-  // Keyboard N/P
-  useEffect(() => {
-    const onKey = (e) => {
-      const inForm = e.target.closest?.("input,textarea,button,[role='dialog']");
-      if (inForm) return;
-      const k = e.key.toLowerCase();
-      if (k === "n") handleNext();
-      if (k === "p") handlePrev();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [handleNext, handlePrev]);
-
+    setCurrentIndex((i) => Math.max(i - 1, 0));
+  }, []);
   const goBack = () => navigate(`/quiz/${aircraft}`);
 
-  // ===== Loading / Empty =====
+  // Loading / Error
   if (loading || sessionLoading || subLoading || blockUntilRoleKnown) {
     return (
       <div className="max-w-3xl mx-auto p-4">
@@ -181,42 +173,61 @@ function QuizPage() {
       </div>
     );
   }
-
+  if (error) return <div className="p-6 text-red-600">Error: {String(error.message || error)}</div>;
   if (!questions.length) {
     return (
       <div className="max-w-3xl mx-auto p-4">
-        <button
-          onClick={goBack}
-          className="mb-4 inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
-        >
+        <button onClick={goBack} className="mb-4 text-sm text-blue-600 hover:underline">
           ← Back to Subjects
         </button>
         <div className="border rounded-lg p-4 bg-white dark:bg-gray-800">
-          Couldn’t load questions. Try again.
+          No questions found.
         </div>
       </div>
     );
   }
 
   const q = questions[viewIndex];
-
-  // Skor untuk review (hanya sampai gatedTotal)
+  const selected = answers[viewIndex] ?? null;
   const correctCount = questions.slice(0, gatedTotal).reduce((acc, qq, i) => {
     const pick = answers[i];
-    return acc + (qq?.choices?.[pick]?.isCorrect ? 1 : 0);
+    return acc + (qq?.correctIndex === pick ? 1 : 0);
   }, 0);
+
+  // Difficulty Selector
+  const changeDifficulty = (e) => {
+    const val = e.target.value;
+    const newParam = val === "all" ? "" : `?level=${val}${includeDescendants ? "&desc=1" : ""}`;
+    navigate(`/quiz/${aircraft}/${subject}${newParam}`);
+  };
+
+  const progressPct = gatedTotal ? ((viewIndex + 1) / gatedTotal) * 100 : 0;
 
   return (
     <div className="max-w-3xl mx-auto p-4 text-gray-900 dark:text-white">
-      {/* Back */}
-      <button
-        onClick={goBack}
-        className="mb-3 inline-flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
-      >
-        ← Back to Subjects
-      </button>
+      {/* Back + Level */}
+      <div className="flex justify-between items-center mb-3">
+        <button
+          onClick={goBack}
+          className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          ← Back to Subjects
+        </button>
+        <div className="flex items-center gap-2">
+          <select
+            className="select select-sm select-bordered"
+            value={levelParam || "all"}
+            onChange={changeDifficulty}
+          >
+            <option value="all">All Levels</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
 
-      {/* Slim Banner (awal saja, non-admin/pro) */}
+      {/* Slim Banner */}
       {shouldShowSlimBanner && (
         <div className="mb-3">
           <QuizBanner
@@ -231,18 +242,17 @@ function QuizPage() {
 
       {isReview && !(adminOverride || isPro) ? (
         <>
-          {/* REVIEW HEADER */}
+          {/* Grade Report */}
           <div className="mb-4 border p-4 rounded-lg shadow bg-white dark:bg-gray-800">
             <h2 className="text-xl font-bold mb-1">Grade Report</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {aircraft.toUpperCase()} - {decodedSubject.toUpperCase()} | Exam Summary
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Correct {correctCount} of {gatedTotal} questions
+              Correct {correctCount} of {gatedTotal} questions ({Math.round((correctCount / gatedTotal) * 100)}%)
             </p>
           </div>
 
-          {/* REVIEW LIST (dibatasi sampai gatedTotal) */}
           {questions.slice(0, gatedTotal).map((question, idx) => (
             <QuestionCard
               key={question.id ?? idx}
@@ -250,46 +260,53 @@ function QuizPage() {
               index={idx}
               total={gatedTotal}
               selected={answers[idx]}
-              showExplanation={true}
+              showExplanation
               isReview
             />
           ))}
         </>
       ) : (
         <>
-          {/* Header */}
           <QuizHeader
             aircraft={aircraft}
             subject={decodedSubject}
             currentIndex={viewIndex}
             total={gatedTotal}
-            level={q.level}
+            level={q.level || q.difficulty}  // fallback aman
             source={q.source}
           />
 
-          {/* Content */}
+          {/* Progress bar */}
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3 dark:bg-gray-700">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+
           <main role="main" className="pb-20">
             <QuestionCard
               question={q}
               index={viewIndex}
               total={gatedTotal}
               selected={selected}
-              onSelect={(i) => answer(i)} // Learn mode → tampilkan explanation
+              onSelect={(i) => {
+                setAnswers((prev) => ({ ...prev, [viewIndex]: i }));
+                setShowExplanation(true);
+              }}
               showExplanation={showExplanation}
             />
 
-            {/* Navigator: total = gatedTotal */}
             <div className="mt-4">
               <QuestionNavigator
                 total={gatedTotal}
                 currentIndex={viewIndex}
                 answers={answers}
-                onJump={jumpTo}
+                onJump={(i) => setCurrentIndex(i)}
               />
             </div>
           </main>
 
-          {/* Footer Nav */}
           <QuizFooterNav
             currentIndex={viewIndex}
             total={gatedTotal}
@@ -302,7 +319,6 @@ function QuizPage() {
         </>
       )}
 
-      {/* Modal batas trial (guest/inactive) */}
       <UpgradeLimitModal
         open={limitModalOpen}
         onClose={() => setLimitModalOpen(false)}
@@ -313,5 +329,3 @@ function QuizPage() {
     </div>
   );
 }
-
-export default QuizPage;

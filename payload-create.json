@@ -1,0 +1,24 @@
+{
+  "question": "Apa fungsi static port?",
+  "choices": [
+    "Mengukur tekanan statis",
+    "Mengukur EGT",
+    "Sumber listrik darurat",
+    "Mengaktifkan anti-ice"
+  ],
+  "correctIndex": 0,
+  "explanations": [
+    "Benar...",
+    "Salah...",
+    "Salah...",
+    "Salah..."
+  ],
+  "difficulty": "easy",
+  "tags": ["ATPL", "pitot-static"],
+  "aircraft": ["A320"],
+  "status": "draft",
+  "category_path": [
+    "ATPL (test) > Human Factors",
+    "ATPL (test) > Systems"
+  ]
+}

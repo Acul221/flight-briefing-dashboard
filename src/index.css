@@ -1,20 +1,38 @@
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Scoped 24-hour format styling hanya untuk RAC Delay */
+/* ---------- App-wide defaults (theme-driven) ---------- */
+@layer base {
+  /* Use theme tokens for page background & text */
+  html, body, #root {
+    @apply bg-base-200 text-neutral min-h-screen;
+  }
+
+  /* Ensure native controls follow light/dark palettes */
+  :root { color-scheme: light; }
+  [data-theme="skydeckprodark"] { color-scheme: dark; }
+}
+
+/* ---------- RAC (24-hour) scoped tweaks ---------- */
+/* Hide AM/PM field on WebKit time inputs inside .rac-scope */
 .rac-scope input[type="time"]::-webkit-datetime-edit-ampm-field {
   display: none;
 }
 
+/* Time picker icon: default (light) = normal; dark theme = inverted */
 .rac-scope input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(1); /* Optional for dark mode */
+  filter: none;
+}
+[data-theme="skydeckprodark"] .rac-scope input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+/* ---------- Utilities ---------- */
+/* Hide scrollbars where desired */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Optional: make images responsive by default */
+img { max-width: 100%; height: auto; }

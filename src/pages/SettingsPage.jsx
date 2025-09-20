@@ -17,12 +17,13 @@ const AdminRACSettings = lazy(() => import("@/pages/admin/AdminRACSettings.jsx")
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 
 export default function SettingsPage() {
-  // accordions (tetap ada seperti sebelumnya)
+  // accordions
   const [showRacSettings, setShowRacSettings] = useState(false);
   const [showPromos, setShowPromos] = useState(false);
   const [showQuizEditor, setShowQuizEditor] = useState(false);
   const [showNotamUploader, setShowNotamUploader] = useState(false);
   const [showRoiTester, setShowRoiTester] = useState(false);
+  const [showNewsletterLogs, setShowNewsletterLogs] = useState(false);
 
   // forms
   const [savingProfile, setSavingProfile] = useState(false);
@@ -31,6 +32,9 @@ export default function SettingsPage() {
   const [passwordForm, setPasswordForm] = useState({ newPassword: "", confirm: "" });
 
   const [orders, setOrders] = useState([]);
+  const [newsletterLogs, setNewsletterLogs] = useState([]);
+  const [logPage, setLogPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const navigate = useNavigate();
   const { session, loading: loadingSession } = useSession();
@@ -57,7 +61,7 @@ export default function SettingsPage() {
     }
   }, [isLoading, isLoggedIn, navigate]);
 
-  // invoice history (user only, ringan)
+  // invoice history
   useEffect(() => {
     (async () => {
       if (!userId) return;
@@ -69,6 +73,27 @@ export default function SettingsPage() {
       setOrders(Array.isArray(data) ? data : []);
     })();
   }, [userId]);
+
+  // newsletter logs (admin only, via Netlify function)
+  useEffect(() => {
+    if (!isAdmin || !showNewsletterLogs) return;
+    (async () => {
+      try {
+        const res = await fetch(`/.netlify/functions/get-newsletter-logs?limit=10&page=${logPage}`, {
+          headers: {
+            "x-admin-secret": import.meta.env.VITE_ADMIN_API_SECRET,
+          },
+        });
+        const json = await res.json();
+        if (json.success) {
+          setNewsletterLogs(json.logs);
+          setTotalPages(json.totalPages);
+        }
+      } catch (err) {
+        console.error("Failed to fetch newsletter logs:", err);
+      }
+    })();
+  }, [isAdmin, showNewsletterLogs, logPage]);
 
   const planText = isPro ? (current?.plan || "Pro") : "Free";
   const expires = current?.current_period_end
@@ -158,7 +183,7 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Account & Security (ringan) */}
+      {/* Account & Security */}
       <Card title="Account & Security">
         <div className="grid lg:grid-cols-2 gap-6">
           {/* profile */}
@@ -185,8 +210,14 @@ export default function SettingsPage() {
                   setProfileForm((f) => ({ ...f, newsletter_opt_in: e.target.checked }))
                 }
               />
-              Subscribe to newsletter
+              <span>Subscribe to newsletter</span>
+              <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                Pro Tips
+              </span>
             </label>
+            <p className="text-xs text-gray-500">
+              Every email includes a 1-click unsubscribe link. We respect your inbox ✈️
+            </p>
             <button
               type="submit"
               className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
@@ -204,9 +235,7 @@ export default function SettingsPage() {
                   type="password"
                   className="w-full rounded border px-3 py-2"
                   value={passwordForm.newPassword}
-                  onChange={(e) =>
-                    setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))
-                  }
+                  onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))}
                   placeholder="At least 8 characters"
                 />
               </Field>
@@ -321,78 +350,69 @@ export default function SettingsPage() {
             </tbody>
           </table>
         </div>
-
-        {/* link kecil ke privacy tools */}
-        <p className="mt-3 text-xs text-gray-500">
-          Need a full data export or account deletion? Use{" "}
-          <Link to="/privacy-tools" className="underline">
-            Privacy Tools
-          </Link>
-          .
-        </p>
       </Card>
 
-      {/* Admin (role-gated) – tetap seperti sebelumnya */}
+      {/* Admin (role-gated) */}
       {isAdmin && (
         <>
-          <Accordion
-            title="Show RAC Settings"
-            open={showRacSettings}
-            onToggle={() => setShowRacSettings((v) => !v)}
-          >
-            <p className="text-sm text-gray-600 mb-3">
-              Configure Deviation Thresholds & Offsets per checkpoint. Changes apply to the RAC Delay page.
-            </p>
-            <Suspense fallback={<div className="text-sm text-gray-500">Loading RAC Settings…</div>}>
-              <AdminRACSettings />
-            </Suspense>
-          </Accordion>
-
-          <Accordion title="Show Promos" open={showPromos} onToggle={() => setShowPromos((v) => !v)}>
-            <AdminPromos />
-          </Accordion>
+          {/* existing accordions ... */}
 
           <Accordion
-            title="Show Quiz Editor"
-            open={showQuizEditor}
-            onToggle={() => setShowQuizEditor((v) => !v)}
+            title="Show Newsletter Logs"
+            open={showNewsletterLogs}
+            onToggle={() => setShowNewsletterLogs((v) => !v)}
           >
-            <div className="mt-2 border-t pt-4">
-              <QuizEditorMaster />
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-gray-500">
+                  <tr>
+                    <th className="py-2 pr-4">User ID</th>
+                    <th className="py-2 pr-4">Status</th>
+                    <th className="py-2 pr-4">Sent At</th>
+                    <th className="py-2 pr-4">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {newsletterLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-3 text-gray-500">No logs found.</td>
+                    </tr>
+                  )}
+                  {newsletterLogs.map((log) => (
+                    <tr key={log.id} className="border-t">
+                      <td className="py-2 pr-4">{log.user_id}</td>
+                      <td className="py-2 pr-4">{log.status}</td>
+                      <td className="py-2 pr-4">
+                        {log.sent_at ? new Date(log.sent_at).toLocaleString() : "-"}
+                      </td>
+                      <td className="py-2 pr-4 text-red-600 text-xs">{log.error || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* pagination */}
+            <div className="flex justify-between items-center mt-3 text-sm">
+              <button
+                onClick={() => setLogPage((p) => Math.max(1, p - 1))}
+                disabled={logPage === 1}
+                className="px-3 py-1.5 rounded border hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span>
+                Page {logPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setLogPage((p) => Math.min(totalPages, p + 1))}
+                disabled={logPage >= totalPages}
+                className="px-3 py-1.5 rounded border hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
           </Accordion>
-
-          <Accordion
-            title="Show NOTAM Uploader"
-            open={showNotamUploader}
-            onToggle={() => setShowNotamUploader((v) => !v)}
-          >
-            <div className="mt-2 border-t pt-4">
-              <PasteNotamForm />
-            </div>
-          </Accordion>
-
-          <Accordion
-            title="Show ROI Tester"
-            open={showRoiTester}
-            onToggle={() => setShowRoiTester((v) => !v)}
-          >
-            <p className="text-sm text-gray-600 mb-2">Open ROI Tester to adjust OCR scan areas.</p>
-            <Link
-              to="/roi-tester"
-              className="inline-block px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm"
-            >
-              Open ROI Tester
-            </Link>
-          </Accordion>
-
-          <Card title="Admin Dashboard (Embedded)" subtitle="Quick view without leaving Settings.">
-            <div className="rounded-xl border overflow-hidden">
-              <Suspense fallback={<div className="p-6">Loading admin widgets…</div>}>
-                <AdminDashboard />
-              </Suspense>
-            </div>
-          </Card>
         </>
       )}
     </div>

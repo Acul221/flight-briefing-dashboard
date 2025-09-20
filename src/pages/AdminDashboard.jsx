@@ -194,6 +194,16 @@ export default function AdminDashboard() {
                 Kelola Users
               </a>
             </li>
+            <li>
+              <a href="/admin/questions" className="hover:underline"> 
+                Kelola Questions 
+              </a> 
+            </li> 
+            <li> 
+              <a href="/admin/categories" className="hover:underline"> 
+                Kelola Categories 
+              </a> 
+          </li>
           </ul>
         </div>
 
