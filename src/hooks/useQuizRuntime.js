@@ -1,36 +1,67 @@
-import { useEffect, useState } from "react";
+// src/hooks/useQuizRuntime.js
+import { useEffect, useMemo, useState } from "react";
 
-export function useQuizRuntime({ category_slug, limit = 20, difficulty, aircraft, strict_aircraft } = {}) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setErr] = useState(null);
+/**
+ * useQuizRuntime
+ * @param {object} opts
+ * @param {string} opts.parentSlug           - slug parent (mis. 'atpl-test')
+ * @param {string=} opts.subjectSlug         - slug child (mis. 'systems'); kalau diisi akan mengirim parent_slug
+ * @param {boolean=} opts.includeDescendants - true jika start dari parent ingin ambil subtree
+ * @param {('easy'|'medium'|'hard')=} opts.difficulty
+ * @param {string=} opts.aircraftCsv         - e.g. "A320,A330"
+ * @param {boolean=} opts.strictAircraft
+ * @param {number=} opts.limit               - default 20
+ */
+export function useQuizRuntime(opts) {
+  const {
+    parentSlug,
+    subjectSlug,
+    includeDescendants = false,
+    difficulty,
+    aircraftCsv,
+    strictAircraft = false,
+    limit = 20,
+  } = opts || {};
 
-  useEffect(() => {
-    let abort = false;
-    async function go() {
-      try {
-        setLoading(true);
-        setErr(null);
-        const qs = new URLSearchParams();
-        if (category_slug) qs.set("category", category_slug);
-        if (limit) qs.set("limit", String(limit));
-        if (difficulty) qs.set("difficulty", Array.isArray(difficulty) ? difficulty.join(",") : difficulty);
-        if (aircraft) qs.set("aircraft", aircraft);
-        if (strict_aircraft) qs.set("strict_aircraft", "1");
-        const url = `/.netlify/functions/quiz-pull?${qs.toString()}`;
-        const res = await fetch(url);
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-        if (!abort) setItems(json.items || []);
-      } catch (e) {
-        if (!abort) setErr(e);
-      } finally {
-        if (!abort) setLoading(false);
-      }
+  const [state, setState] = useState({ loading: false, error: null, items: [], count: 0 });
+
+  const url = useMemo(() => {
+    if (!parentSlug && !subjectSlug) return null;
+
+    const qs = new URLSearchParams();
+    if (subjectSlug) {
+      qs.set("category_slug", subjectSlug);
+      if (parentSlug) qs.set("parent_slug", parentSlug); // disambiguasi child dgn parent
+    } else {
+      // parent mode
+      qs.set("category_slug", parentSlug);
+      if (includeDescendants) qs.set("include_descendants", "1");
     }
-    if (category_slug) go();
-    return () => { abort = true; };
-  }, [category_slug, limit, difficulty, aircraft, strict_aircraft]);
 
-  return { items, loading, error };
+    if (difficulty) qs.set("difficulty", difficulty);
+    if (aircraftCsv) qs.set("aircraft", aircraftCsv);
+    if (strictAircraft) qs.set("strict_aircraft", "1");
+    if (limit) qs.set("limit", String(limit));
+
+    return `/.netlify/functions/quiz-pull?${qs.toString()}`;
+  }, [parentSlug, subjectSlug, includeDescendants, difficulty, aircraftCsv, strictAircraft, limit]);
+
+  async function refetch() {
+    if (!url) return;
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      setState({ loading: false, error: null, items: json.items || [], count: json.count || 0 });
+    } catch (e) {
+      setState({ loading: false, error: e.message, items: [], count: 0 });
+    }
+  }
+
+  useEffect(() => { refetch(); }, [url]);
+
+  return { ...state, refetch, url };
 }
+
+export default useQuizRuntime;

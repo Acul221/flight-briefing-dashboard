@@ -1,3 +1,4 @@
+// src/pages/admin/AdminNewsletter.jsx
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -11,12 +12,15 @@ const supabase = createClient(
 
 export default function AdminNewsletter() {
   const [summary, setSummary] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchSummary();
+    fetchLogs();
   }, []);
 
+  // --- Fetch campaign summary ---
   const fetchSummary = async () => {
     const { data, error } = await supabase
       .from("newsletter_summary")
@@ -29,6 +33,16 @@ export default function AdminNewsletter() {
       setSummary(data || []);
     }
     setLoading(false);
+  };
+
+  // --- Fetch recent logs (join profiles for email) ---
+  const fetchLogs = async () => {
+    const { data, error } = await supabase.rpc("get_newsletter_logs");
+    if (error) {
+      console.error("Error fetching logs:", error);
+    } else {
+      setLogs(data || []);
+    }
   };
 
   if (loading) {
@@ -91,7 +105,8 @@ export default function AdminNewsletter() {
       </div>
 
       {/* Table Summary */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto mb-10">
+        <h2 className="font-semibold mb-2">Campaign Summary</h2>
         <table className="min-w-full border border-gray-200 dark:border-gray-700 rounded-lg shadow">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-800 text-left">
@@ -118,6 +133,35 @@ export default function AdminNewsletter() {
                 <td className="p-2 border dark:border-gray-700">
                   {s.last_sent ? new Date(s.last_sent).toLocaleString("id-ID") : "-"}
                 </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Recent Logs */}
+      <div className="overflow-x-auto">
+        <h2 className="font-semibold mb-2">Recent Logs</h2>
+        <table className="min-w-full border border-gray-200 dark:border-gray-700 rounded-lg shadow">
+          <thead>
+            <tr className="bg-gray-100 dark:bg-gray-800 text-left">
+              <th className="p-2 border dark:border-gray-700">Email</th>
+              <th className="p-2 border dark:border-gray-700">Status</th>
+              <th className="p-2 border dark:border-gray-700">Sent At</th>
+              <th className="p-2 border dark:border-gray-700">Campaign ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map((log) => (
+              <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                <td className="p-2 border dark:border-gray-700">{log.email}</td>
+                <td className={`p-2 border dark:border-gray-700 ${log.status === "success" ? "text-green-600" : "text-red-600"}`}>
+                  {log.status}
+                </td>
+                <td className="p-2 border dark:border-gray-700">
+                  {log.sent_at ? new Date(log.sent_at).toLocaleString("id-ID") : "-"}
+                </td>
+                <td className="p-2 border dark:border-gray-700">{log.campaign_id || "-"}</td>
               </tr>
             ))}
           </tbody>
