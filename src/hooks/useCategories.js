@@ -1,66 +1,75 @@
 // src/hooks/useCategories.js
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { adminFetch } from "@/lib/adminFetch";
 
-const CATS_URL = "/.netlify/functions/categories?tree=1";
+const API = "/.netlify/functions/categories";
+const API_TREE = "/.netlify/functions/categories-tree";
 
-function normalizeTree(arr) {
-  // Shape tolerant: {tree:[...]} | {items:[...]} | [...]
-  const data = Array.isArray(arr?.tree) ? arr.tree : Array.isArray(arr?.items) ? arr.items : arr || [];
-  // pastikan setiap node punya children array
-  const fill = (node) => ({
-    ...node,
-    children: Array.isArray(node.children) ? node.children.map(fill) : [],
-  });
-  return data.map(fill);
+/** ---------------- Plain API helpers (dipakai UI / komponen lain) ---------------- */
+export async function getCategoriesTree() {
+  const data = await adminFetch(API_TREE, { method: "GET" });
+  return data?.items || [];
 }
 
-function flatten(tree) {
-  const out = [];
-  const walk = (nodes, parent = null) => {
-    nodes.forEach((n) => {
-      out.push({
-        id: n.id,
-        label: n.label,
-        slug: n.slug,
-        parent_id: n.parent_id ?? parent?.id ?? null,
-        requires_aircraft: !!n.requires_aircraft,
-      });
-      if (n.children?.length) walk(n.children, n);
-    });
-  };
-  walk(tree);
-  return out;
+export async function listCategories(params = {}) {
+  const qs = new URLSearchParams(params);
+  const data = await adminFetch(`${API}?${qs.toString()}`, { method: "GET" });
+  return data?.items || [];
 }
 
-export function useCategoriesTree() {
-  const [tree, setTree] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setErr] = useState(null);
+export async function createCategory(payload) {
+  // payload: { label, parent_id?, requires_aircraft?, pro_only?, order_index?, is_active? }
+  const data = await adminFetch(API, { method: "POST", body: payload });
+  return data?.item;
+}
 
-  const refetch = useCallback(async () => {
+export async function updateCategory(id, patch) {
+  const data = await adminFetch(`${API}?id=${id}`, { method: "PUT", body: patch });
+  return data?.item;
+}
+
+export async function deleteCategory(id) {
+  const data = await adminFetch(`${API}?id=${id}`, { method: "DELETE" });
+  return data?.ok === true;
+}
+
+/** ---------------- Hooks ---------------- */
+export function useCategoriesTree(auto = true) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(!!auto);
+  const [error, setError] = useState(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setErr(null);
-      const res = await fetch(CATS_URL, { credentials: "omit" });
-      const json = await res.json();
-      const t = normalizeTree(json);
-      setTree(t);
+      const rows = await getCategoriesTree();
+      setItems(rows);
     } catch (e) {
-      setErr(e);
+      setError(e);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => {
+    if (auto) reload();
+  }, [auto, reload]);
 
-  const flat = useMemo(() => flatten(tree), [tree]);
-
-  return { tree, flat, loading, error: error, refetch };
+  return { items, loading, error, reload };
 }
 
-// Backward compatibility – used by some admin pages
-export function useCategoriesFlat() {
-  const { flat, loading, error, refetch } = useCategoriesTree();
-  return { items: flat, loading, error, refetch };
+function flatten(tree, acc = [], prefix = "") {
+  for (const n of tree || []) {
+    const pathLabel = prefix ? `${prefix} › ${n.label}` : n.label;
+    acc.push({ ...n, pathLabel });
+    if (n.children?.length) flatten(n.children, acc, pathLabel);
+  }
+  return acc;
+}
+
+export function useCategoriesFlat(auto = true) {
+  const { items: tree, loading, error, reload } = useCategoriesTree(auto);
+  const flat = useMemo(() => flatten(tree || []), [tree]);
+  return { items: flat, tree, loading, error, reload };
 }
