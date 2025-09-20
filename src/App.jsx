@@ -54,6 +54,7 @@ const AdminNewsletter     = lazy(() => import("./pages/admin/AdminNewsletter"));
 const AdminCategories     = lazy(() => import("./pages/admin/CategoryManager"));
 const AdminQuestionEditor = lazy(() => import("./pages/admin/QuestionEditor")); // list
 const AdminQuestionForm   = lazy(() => import("@/components/admin/QuestionFormFull")); // form create/edit
+const AdminNewsletterDetail = lazy(() => import("./pages/admin/AdminNewsletterDetail")); // <--- ADD THIS
 
 /* ---------------- Payments ---------------- */
 const PaymentResult = lazy(() => import("./pages/PaymentResult"));
@@ -211,6 +212,7 @@ export default function App() {
             <Route path="orders"      element={<AdminOrders />} />
             <Route path="newsletter"  element={<AdminNewsletter />} />
             <Route path="categories"  element={<AdminCategories />} />
+            <Route path="newsletter/:campaignId" element={<AdminNewsletterDetail />} /> {/* <--- ADD THIS */}
 
             {/* Questions */}
             <Route path="questions"       element={<AdminQuestionEditor />} />

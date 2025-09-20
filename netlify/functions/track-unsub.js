@@ -6,33 +6,46 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
-export async function handler(event, context) {
+export async function handler(event) {
   try {
     const { searchParams } = new URL(event.rawUrl);
     const campaignId = searchParams.get("c");
     const userId = searchParams.get("u");
 
     if (campaignId && userId) {
-      await supabase.from("newsletter_logs").upsert({
-        campaign_id: campaignId,
-        user_id: userId,
-        unsubscribed: true,
-        unsubscribed_at: new Date().toISOString(),
-      });
-      await supabase.rpc("increment_unsub_count", { cid: campaignId });
+      // Update logs
+      const { error: upsertError } = await supabase.from("newsletter_logs").upsert(
+        {
+          campaign_id: campaignId,
+          user_id: userId,
+          unsubscribed: true,
+          unsubscribed_at: new Date().toISOString(),
+        },
+        { onConflict: "campaign_id,user_id" }
+      );
+      if (upsertError) console.error("Supabase upsert error:", upsertError);
 
-      // Optional: tandai di profiles
-      await supabase.from("profiles").update({ newsletter_opt_in: false }).eq("id", userId);
+      // Update user profile → opt-out
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ newsletter_opt_in: false })
+        .eq("id", userId);
+      if (profileError) console.error("Supabase profile update error:", profileError);
     }
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "text/html" },
       body: `
-        <html><body style="font-family:sans-serif;text-align:center;margin-top:100px;">
-          <h2>✅ You have been unsubscribed.</h2>
-          <p>You will no longer receive this newsletter.</p>
-        </body></html>
+        <html>
+          <body style="font-family:sans-serif;text-align:center;margin-top:100px;">
+            <h2>✅ You have been unsubscribed.</h2>
+            <p>You will no longer receive this newsletter.</p>
+            <a href="https://skydeckpro.id" style="color:#0D47A1;display:inline-block;margin-top:20px;">
+              ← Back to SkyDeckPro
+            </a>
+          </body>
+        </html>
       `,
     };
   } catch (err) {

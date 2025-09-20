@@ -16,6 +16,13 @@ directory = "netlify/functions"
   status = 200
 
 [[redirects]]
+  from = "https://skydeckpro.id/*"
+  to = "https://www.skydeckpro.id/:splat"
+  status = 301
+  force = true
+
+
+[[redirects]]
   from = "/robots.txt"
   to = "/robots.txt"
   status = 200

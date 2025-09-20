@@ -2,8 +2,14 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer
+  LineChart, Line,
+  BarChart, Bar,
+  PieChart, Pie,
+  XAxis, YAxis,
+  Tooltip, Legend,
+  ResponsiveContainer
 } from "recharts";
+import { Link } from "react-router-dom";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -59,6 +65,16 @@ export default function AdminNewsletter() {
     ? (summary.reduce((sum, s) => sum + (s.total_attempts > 0 ? (s.click_count / s.total_attempts) * 100 : 0), 0) / summary.length).toFixed(1)
     : 0;
 
+  // --- Data for Failed Reasons Pie ---
+  const failedReasons = logs
+    .filter(l => l.status === "failed" && l.error)
+    .reduce((acc, log) => {
+      const existing = acc.find(a => a.error === log.error);
+      if (existing) existing.count++;
+      else acc.push({ error: log.error, count: 1 });
+      return acc;
+    }, []);
+
   return (
     <div className="max-w-7xl mx-auto p-6 dark:bg-gray-900 dark:text-gray-100 min-h-screen transition-colors">
       <h1 className="text-2xl font-bold mb-6">📧 Newsletter Campaign Analytics</h1>
@@ -104,6 +120,26 @@ export default function AdminNewsletter() {
         </ResponsiveContainer>
       </div>
 
+      {/* Pie Chart Failed Reasons */}
+      <div className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow mb-6">
+        <h2 className="font-semibold mb-2">Failed Reasons</h2>
+        <ResponsiveContainer width="100%" height={250}>
+          <PieChart>
+            <Pie
+              data={failedReasons}
+              dataKey="count"
+              nameKey="error"
+              cx="50%"
+              cy="50%"
+              outerRadius={100}
+              fill="#ef4444"
+              label
+            />
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
       {/* Table Summary */}
       <div className="overflow-x-auto mb-10">
         <h2 className="font-semibold mb-2">Campaign Summary</h2>
@@ -118,6 +154,7 @@ export default function AdminNewsletter() {
               <th className="p-2 border dark:border-gray-700">Clicks</th>
               <th className="p-2 border dark:border-gray-700">Unsubs</th>
               <th className="p-2 border dark:border-gray-700">Last Sent</th>
+              <th className="p-2 border dark:border-gray-700">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -132,6 +169,11 @@ export default function AdminNewsletter() {
                 <td className="p-2 border dark:border-gray-700">{s.unsub_count}</td>
                 <td className="p-2 border dark:border-gray-700">
                   {s.last_sent ? new Date(s.last_sent).toLocaleString("id-ID") : "-"}
+                </td>
+                <td className="p-2 border dark:border-gray-700">
+                  <Link to={`/admin/newsletter/${s.campaign_id}`} className="text-blue-600 underline">
+                    View Detail
+                  </Link>
                 </td>
               </tr>
             ))}

@@ -1,270 +1,365 @@
 // src/pages/QuizSelector.jsx
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Search, ChevronRight, Lock, Plane, RefreshCcw, Sparkles, Info } from "lucide-react";
-import QuizSidebar from "@/components/quiz/QuizSidebar";
+import {
+  ChevronRight, RefreshCcw, Search, Zap, Layers, Gauge,
+  Plane, FolderOpen, Sparkles, Shield, Filter
+} from "lucide-react";
 
-/** API kecil */
-const api = {
-  async getTree() {
-    const res = await fetch("/.netlify/functions/categories-tree");
-    if (!res.ok) throw new Error("Failed to load categories");
-    const json = await res.json();
-    return json.items || [];
-  },
-};
+/* ---- helpers ------------------------------------------------------------ */
+
+function cls(...xs) { return xs.filter(Boolean).join(" "); }
+function titleCase(s) { return String(s || "").replace(/[-_]/g, " ").replace(/\s+/g, " ").trim(); }
+function toAcftCode(slug) { return String(slug || "").toUpperCase(); }
+
+/** cari node di tree by slug */
+function findNodeBySlug(tree, slug) {
+  if (!Array.isArray(tree)) return null;
+  for (const n of tree) {
+    if (n.slug === slug) return n;
+    const c = findNodeBySlug(n.children || [], slug);
+    if (c) return c;
+  }
+  return null;
+}
+
+/** kumpulkan kategori yg requires_aircraft=true dari seluruh tree (maks 8) */
+function collectRequires(tree) {
+  const out = [];
+  (function walk(nodes) {
+    for (const n of nodes || []) {
+      if (n.requires_aircraft) out.push(n);
+      if (out.length >= 8) return;
+      walk(n.children || []);
+    }
+  })(tree || []);
+  return out;
+}
+
+/** fetcher sederhana */
+async function fetchCategoryTree() {
+  const r = await fetch("/.netlify/functions/categories-tree");
+  const j = await r.json();
+  if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+  return j.items || [];
+}
+
+/* ---- UI atoms ----------------------------------------------------------- */
+
+function Badge({ children, tone = "ghost" }) {
+  return <span className={cls("badge", tone === "ghost" ? "badge-ghost" : "")}>{children}</span>;
+}
+
+function Segmented({ value, onChange, items }) {
+  return (
+    <div className="join">
+      {items.map(it => (
+        <button
+          key={it.value}
+          type="button"
+          className={cls("btn btn-xs md:btn-sm join-item", value === it.value ? "btn-primary" : "btn-ghost")}
+          onClick={() => onChange(it.value)}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Card({ title, subtitle, footer, onClick, proOnly, requiresAircraft }) {
+  return (
+    <div
+      onClick={onClick}
+      className="group cursor-pointer rounded-2xl border bg-white hover:shadow-md transition p-4 flex flex-col"
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-10 w-10 rounded-xl bg-violet-50 grid place-items-center group-hover:scale-105 transition">
+            <Gauge size={18} />
+          </div>
+          <div>
+            <div className="font-medium">{title}</div>
+            {subtitle && <div className="text-xs opacity-60 mt-0.5">{subtitle}</div>}
+          </div>
+        </div>
+        <ChevronRight className="opacity-40 group-hover:opacity-80" size={18} />
+      </div>
+      <div className="mt-3 flex gap-2 flex-wrap">
+        {proOnly && <Badge tone="ghost">PRO</Badge>}
+        {requiresAircraft && <Badge tone="ghost">ACFT</Badge>}
+        <Badge tone="ghost">Shuffle</Badge>
+        <Badge tone="ghost">Explanation</Badge>
+      </div>
+      {footer && <div className="mt-3 text-xs opacity-60">{footer}</div>}
+    </div>
+  );
+}
+
+function Sidebar({ roots, currentSlug }) {
+  const ICONS = {
+    overview: <FolderOpen size={16} />,
+    a320: <Plane size={16} />,
+    "aircraft-systems": <Layers size={16} />,
+    systems: <Layers size={16} />,
+    procedure: <Shield size={16} />,
+    default: <Sparkles size={16} />,
+  };
+  return (
+    <aside className="w-56 shrink-0 border-r bg-base-100">
+      <div className="p-3 text-xs font-semibold opacity-70">QUIZ MENU</div>
+      <nav className="flex flex-col">
+        {roots.map(r => (
+          <Link
+            key={r.id}
+            to={`/quiz/${r.slug}`}
+            className={cls(
+              "px-3 py-2 flex items-center gap-2 hover:bg-base-200",
+              currentSlug === r.slug ? "bg-base-200 font-medium" : ""
+            )}
+          >
+            {(ICONS[r.slug] || ICONS.default)}
+            <span className="truncate">{r.label}</span>
+          </Link>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+/* ---- main page ---------------------------------------------------------- */
 
 export default function QuizSelector() {
-  const nav = useNavigate();
-  // param `:aircraft` kita treat sbg parentSlug (biar backward-compatible dg route lama)
-  const { aircraft: urlParentSlug } = useParams();
+  const { aircraft: currentSlug } = useParams();
+  const navigate = useNavigate();
+
+  // filters
+  const [level, setLevel] = useState("medium");
+  const [limit, setLimit] = useState(20);
+  const [includeDesc, setIncludeDesc] = useState(true);
+  const [q, setQ] = useState("");
+  const [acftText, setAcftText] = useState("");
 
   const [tree, setTree] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-  const [q, setQ] = useState("");
-  const [includeDesc, setIncludeDesc] = useState(true);
-  const [difficulty, setDifficulty] = useState("medium");
-  const [limit, setLimit] = useState(20);
-  const [aircraft, setAircraft] = useState("");
+  const [installed, setInstalled] = useState({ roots: [], parent: null, children: [], recommended: [] });
 
+  // load categories
   useEffect(() => {
-    let mounted = true;
+    let live = true;
     (async () => {
       setLoading(true);
-      try { const items = await api.getTree(); if (mounted) setTree(items); }
-      finally { if (mounted) setLoading(false); }
+      setErr("");
+      try {
+        const t = await fetchCategoryTree();
+        if (!live) return;
+        setTree(t);
+      } catch (e) {
+        if (!live) return;
+        setErr(e.message || "failed");
+      } finally {
+        if (live) setLoading(false);
+      }
     })();
-    return () => (mounted = false);
+    return () => { live = false; };
   }, []);
 
-  const parents = useMemo(
-    () => [...tree].sort(
-      (a, b) =>
-        (a.order_index ?? 0) - (b.order_index ?? 0) ||
-        a.label.localeCompare(b.label)
-    ),
-    [tree]
-  );
+  // resolve current parent/children/recommended
+  useEffect(() => {
+    const roots = (tree || []).map(r => ({ id: r.id, slug: r.slug, label: r.label }));
+    const parent = findNodeBySlug(tree, currentSlug) || null;
+    const children = (parent?.children || []).slice().sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    const recommendedAll = collectRequires(tree);
+    // Filter rekomendasi agar tidak menampilkan parent yg sama
+    const recommended = recommendedAll
+      .filter(x => !parent || x.slug !== parent.slug)
+      .slice(0, 8);
 
-  const activeParent = parents.find(p => p.slug === urlParentSlug) || parents[0] || null;
+    // Aircraft input default dari slug jika sepertinya code pesawat
+    const maybeAc = toAcftCode(currentSlug);
+    if (/^[A-Z]+\d+$/.test(maybeAc) && !acftText) setAcftText(maybeAc);
 
-  const childrenFiltered = useMemo(() => {
-    const list = activeParent?.children || [];
-    const s = q.trim().toLowerCase();
-    const filtered = s
-      ? list.filter(c => c.label.toLowerCase().includes(s) || c.slug.toLowerCase().includes(s))
-      : list;
-    return [...filtered].sort(
-      (a, b) =>
-        (a.order_index ?? 0) - (b.order_index ?? 0) ||
-        a.label.localeCompare(b.label)
+    setInstalled({ roots, parent, children, recommended });
+  }, [tree, currentSlug]); // eslint-disable-line
+
+  const filteredChildren = useMemo(() => {
+    const qx = q.trim().toLowerCase();
+    if (!qx) return installed.children;
+    return (installed.children || []).filter(c =>
+      c.label.toLowerCase().includes(qx) || c.slug.toLowerCase().includes(qx)
     );
-  }, [activeParent, q]);
+  }, [q, installed.children]);
 
-  const startRandomParent = () => {
-    if (!activeParent) return;
-    if ((activeParent.requires_aircraft) && !aircraft.trim()) {
-      alert("Kategori ini membutuhkan aircraft. Isi field Aircraft lebih dulu.");
-      return;
+  const goPractice = useCallback((subjectSlug) => {
+    let target = subjectSlug;
+    if (!target) {
+      if (installed.children?.length) target = installed.children[0].slug;
+      else if (installed.recommended?.length) target = installed.recommended[0].slug;
+      else if (installed.roots?.length) target = installed.roots[0].slug;
+      else target = "general";
     }
-    const query = new URLSearchParams();
-    query.set("level", difficulty);
-    query.set("limit", String(limit));
-    if (includeDesc) query.set("desc", "1");
-    if (aircraft) query.set("aircraft", aircraft);
-    nav(`/quiz/${encodeURIComponent(activeParent.slug)}?${query.toString()}`);
-  };
-
-  const startChild = (child) => {
-    if (!activeParent || !child) return;
-    const mustAcft = activeParent.requires_aircraft || child.requires_aircraft;
-    if (mustAcft && !aircraft.trim()) {
-      alert("Kategori ini membutuhkan aircraft. Isi field Aircraft lebih dulu.");
-      return;
+    const params = new URLSearchParams();
+    params.set("level", level);
+    params.set("limit", String(limit));
+    if (includeDesc) params.set("desc", "1");
+    if (acftText.trim()) {
+      params.set("ac", acftText.trim());
+      params.set("strict_ac", "1");
     }
-    const query = new URLSearchParams();
-    query.set("level", difficulty);
-    query.set("limit", String(limit));
-    if (includeDesc) query.set("desc", "1");
-    if (aircraft) query.set("aircraft", aircraft);
-    nav(`/quiz/${encodeURIComponent(activeParent.slug)}/${encodeURIComponent(child.slug)}?${query.toString()}`);
-  };
+    navigate(`/quiz/${currentSlug}/${target}?${params.toString()}`);
+  }, [installed, currentSlug, level, limit, includeDesc, acftText, navigate]);
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)]">
-      {/* Sidebar (gambar #4) */}
-      <QuizSidebar parents={parents} activeSlug={activeParent?.slug} />
+    <div className="min-h-screen bg-gradient-to-b from-base-100 to-base-200">
+      <div className="max-w-[1200px] mx-auto flex">
+        {/* left menu */}
+        <Sidebar roots={installed.roots} currentSlug={currentSlug} />
 
-      {/* Main */}
-      <section className="flex-1">
-        <HeaderBar parent={activeParent} onStartRandom={startRandomParent} loading={loading} />
+        {/* content */}
+        <section className="flex-1 p-4 md:p-6">
+          <header className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs opacity-60">SkyDeckPro • Quiz</div>
+              <h1 className="text-xl font-semibold">{titleCase(currentSlug)}</h1>
+            </div>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => goPractice(null)}
+              disabled={loading}
+              title={`Start random ${currentSlug}`}
+            >
+              <Zap size={16} className="mr-1" />
+              Start random {currentSlug}
+            </button>
+          </header>
 
-        <div className="px-4 md:px-8 pb-10">
-          {/* Controls */}
-          <div className="rounded-2xl border bg-base-100 p-3 md:p-4 mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <div className="md:col-span-2">
+          {/* filters */}
+          <div className="mt-4 rounded-2xl border bg-white p-3">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+              <div className="md:col-span-4">
                 <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-60" />
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50" />
                   <input
-                    className="input input-bordered w-full pl-9"
+                    className="input input-bordered w-full pl-10"
                     placeholder="Cari subkategori…"
                     value={q}
-                    onChange={(e) => setQ(e.target.value)}
+                    onChange={e => setQ(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="md:col-span-3 flex items-center gap-2">
                 <span className="text-xs opacity-60">Difficulty</span>
-                <div className="join">
-                  {["easy", "medium", "hard"].map(d => (
-                    <button
-                      key={d}
-                      className={`btn btn-xs md:btn-sm join-item ${difficulty===d?"btn-primary":"btn-ghost"}`}
-                      onClick={()=>setDifficulty(d)}
-                    >{d}</button>
-                  ))}
-                </div>
+                <Segmented
+                  value={level}
+                  onChange={setLevel}
+                  items={[
+                    { value: "easy", label: "easy" },
+                    { value: "medium", label: "medium" },
+                    { value: "hard", label: "hard" },
+                  ]}
+                />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="md:col-span-2 flex items-center gap-2">
                 <span className="text-xs opacity-60">Limit</span>
                 <input
-                  type="number" min={5} max={100}
-                  className="input input-bordered input-xs md:input-sm w-24"
+                  type="number"
+                  min={5}
+                  max={100}
+                  className="input input-bordered input-sm w-20"
                   value={limit}
-                  onChange={(e)=>setLimit(parseInt(e.target.value||"20",10))}
+                  onChange={e => setLimit(parseInt(e.target.value || "20", 10))}
                 />
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="form-control">
-                  <label className="label cursor-pointer gap-2">
-                    <input type="checkbox" className="toggle toggle-sm"
-                      checked={includeDesc} onChange={()=>setIncludeDesc(v=>!v)} />
-                    <span className="label-text text-xs">Include subcategories</span>
-                    <span className="tooltip" data-tip="Berlaku jika memilih parent">
-                      <Info size={14} className="opacity-50" />
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="md:col-span-2">
+              <div className="md:col-span-3">
                 <input
-                  className="input input-bordered w-full"
-                  placeholder="Aircraft (contoh: A320, B737) — wajib untuk kategori tertentu"
-                  value={aircraft}
-                  onChange={(e)=>setAircraft(e.target.value)}
+                  className="input input-bordered input-sm w-full"
+                  placeholder="Aircraft (contoh: A320, B737)…"
+                  value={acftText}
+                  onChange={e => setAcftText(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <button className="btn btn-ghost btn-sm" onClick={()=>window.location.reload()}>
-                  <RefreshCcw size={14}/> Refresh
+
+              <div className="md:col-span-12 flex items-center justify-between">
+                <label className="label cursor-pointer gap-2">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-xs"
+                    checked={includeDesc}
+                    onChange={e => setIncludeDesc(e.target.checked)}
+                  />
+                  <span className="text-xs opacity-70">Include subcategories</span>
+                </label>
+                <button className="btn btn-ghost btn-xs" onClick={() => window.location.reload()}>
+                  <RefreshCcw size={14} /> Refresh
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Grid subcategory cards */}
-          {loading ? <SkeletonGrid/> :
-            !activeParent ? <EmptyState/> :
-            <CardsGrid parent={activeParent} childrenList={childrenFiltered} onStartChild={startChild} />
-          }
-        </div>
-      </section>
-    </div>
-  );
-}
+          {/* content grid */}
+          <div className="mt-4">
+            {err && <div className="alert alert-error">{err}</div>}
+            {loading && <div className="p-6 text-sm opacity-60">Loading categories…</div>}
 
-/* ---------- Sub-components ---------- */
+            {!loading && filteredChildren?.length > 0 && (
+              <>
+                <div className="text-sm font-medium mb-2">Subcategories</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredChildren.map(c => (
+                    <Card
+                      key={c.id}
+                      title={c.label}
+                      subtitle="Detailed explanations • Shuffle enabled"
+                      footer="Learn more →"
+                      proOnly={c.pro_only}
+                      requiresAircraft={c.requires_aircraft}
+                      onClick={() => goPractice(c.slug)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
 
-function HeaderBar({ parent, onStartRandom, loading }) {
-  return (
-    <div className="sticky top-0 z-10 bg-base-100/80 backdrop-blur border-b">
-      <div className="px-4 md:px-8 py-3 flex items-center justify-between">
-        <div>
-          <div className="text-xs opacity-60">SkyDeckPro • Quiz</div>
-          <h1 className="text-lg md:text-2xl font-bold tracking-tight">
-            {parent ? parent.label : "Loading…"}
-          </h1>
-          {parent?.pro_only ? <span className="badge badge-warning badge-sm mt-1">PRO</span> : null}
-        </div>
-        <div className="flex gap-2">
-          <button className="btn btn-primary" onClick={onStartRandom} disabled={!parent || loading}>
-            <Sparkles size={16}/> Start random {parent ? parent.label : ""}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+            {!loading && filteredChildren?.length === 0 && (
+              <div className="rounded-2xl border bg-white p-6 text-center text-sm opacity-70">
+                Tidak ada subkategori pada parent ini.
+              </div>
+            )}
 
-function CardsGrid({ parent, childrenList, onStartChild }) {
-  if (!childrenList.length) {
-    return <div className="rounded-2xl border p-10 text-center text-sm opacity-70">Tidak ada subkategori pada parent ini.</div>;
-  }
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {childrenList.map(c => (
-        <CategoryCard key={c.id} parent={parent} cat={c} onStart={()=>onStartChild(c)} />
-      ))}
-    </div>
-  );
-}
-
-function CategoryCard({ parent, cat, onStart }) {
-  const mustAircraft = parent.requires_aircraft || cat.requires_aircraft;
-  return (
-    <div className="card bg-base-100 border hover:shadow-xl transition-shadow rounded-2xl">
-      <div className="card-body">
-        <div className="flex items-start justify-between">
-          <h3 className="card-title text-base">{cat.label}</h3>
-          <div className="flex gap-1">
-            {cat.pro_only ? <span className="badge badge-warning">PRO</span> : null}
-            {mustAircraft ? (
-              <span className="tooltip" data-tip="Requires aircraft">
-                <Plane size={16} className="text-info" />
-              </span>
-            ) : null}
+            {/* Recommendations when empty (e.g., a320) */}
+            {!loading && installed.children?.length === 0 && installed.recommended?.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter size={16} className="opacity-60" />
+                  <div className="text-sm font-medium">Recommended sets (aircraft-aware)</div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {installed.recommended.map(c => (
+                    <Card
+                      key={c.id}
+                      title={c.label}
+                      subtitle="Works with aircraft filter"
+                      proOnly={c.pro_only}
+                      requiresAircraft={c.requires_aircraft}
+                      onClick={() => goPractice(c.slug)}
+                    />
+                  ))}
+                </div>
+                {!acftText && (
+                  <div className="mt-3 text-xs opacity-60">
+                    Tips: masukkan kode pesawat (mis. <b>{toAcftCode(currentSlug)}</b>) agar soal difilter ketat ke tipe tersebut.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
-        <p className="text-xs opacity-70">100+ questions • Detailed explanations • Shuffle enabled</p>
-        <div className="card-actions justify-end mt-3">
-          <button className="btn btn-ghost btn-sm">
-            <Link
-              to={`/quiz/${encodeURIComponent(parent.slug)}/${encodeURIComponent(cat.slug)}`}
-              className="inline-flex items-center gap-1"
-              onClick={(e)=>e.preventDefault()}
-            >
-              Learn more <ChevronRight size={14}/>
-            </Link>
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={onStart}>Practice</button>
-        </div>
+        </section>
       </div>
     </div>
   );
-}
-
-function SkeletonGrid() {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="rounded-2xl border p-4">
-          <div className="skeleton h-5 w-40 mb-3" />
-          <div className="skeleton h-4 w-56 mb-2" />
-          <div className="skeleton h-10 w-full" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return <div className="rounded-2xl border p-10 text-center text-sm opacity-70">Tidak ada kategori.</div>;
 }
