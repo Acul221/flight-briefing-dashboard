@@ -26,17 +26,14 @@ export default function AdminNewsletter() {
     fetchLogs();
   }, []);
 
-  // --- Fetch campaign summary ---
+  // --- Fetch campaign summary via Netlify function ---
   const fetchSummary = async () => {
-    const { data, error } = await supabase
-      .from("newsletter_summary")
-      .select("*")
-      .order("last_sent", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching summary:", error);
-    } else {
-      setSummary(data || []);
+    try {
+      const res = await fetch("/.netlify/functions/get-newsletters");
+      const json = await res.json();
+      setSummary(json.newsletters || []);
+    } catch (err) {
+      console.error("Error fetching summary:", err);
     }
     setLoading(false);
   };
@@ -159,7 +156,7 @@ export default function AdminNewsletter() {
           </thead>
           <tbody>
             {summary.map((s) => (
-              <tr key={s.newsletter_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+              <tr key={s.campaign_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                 <td className="p-2 border dark:border-gray-700">{s.subject}</td>
                 <td className="p-2 border dark:border-gray-700">{s.total_attempts}</td>
                 <td className="p-2 border dark:border-gray-700 text-green-600">{s.success_count}</td>

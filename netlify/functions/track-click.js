@@ -1,8 +1,7 @@
 // netlify/functions/track-click.js
 import { createClient } from "@supabase/supabase-js";
-
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE
 );
 
@@ -13,34 +12,20 @@ export async function handler(event) {
     const userId = searchParams.get("u");
     const url = searchParams.get("url") || "https://skydeckpro.id";
 
-    // Whitelist domain redirect
-    const allowedDomains = ["skydeckpro.id", "www.skydeckpro.id"];
-    const target = new URL(url);
-    if (!allowedDomains.some((d) => target.hostname.endsWith(d))) {
-      console.warn("Blocked redirect to:", target.hostname);
-      return { statusCode: 400, body: "Invalid redirect URL" };
-    }
-
     if (campaignId && userId) {
-      const { error } = await supabase.from("newsletter_logs").upsert(
-        {
-          campaign_id: campaignId,
-          user_id: userId,
-          clicked: true,
-          clicked_at: new Date().toISOString(),
-        },
-        { onConflict: "campaign_id,user_id" }
-      );
-      if (error) console.error("Supabase upsert error:", error);
+      await supabase.from("newsletter_logs").upsert({
+        campaign_id: campaignId,
+        user_id: userId,
+        clicked: true,
+        clicked_at: new Date().toISOString(),
+      }, { onConflict: "campaign_id,user_id" });
+
+      await supabase.rpc("increment_click_count", { cid: campaignId });
     }
 
     return {
       statusCode: 302,
-      headers: {
-        Location: url,
-        "Cache-Control":
-          "no-store, no-cache, must-revalidate, proxy-revalidate",
-      },
+      headers: { Location: url },
       body: "",
     };
   } catch (err) {
