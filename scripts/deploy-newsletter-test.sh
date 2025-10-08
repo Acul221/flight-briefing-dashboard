@@ -22,7 +22,7 @@ fi
 
 # --- Config ---
 CAMPAIGN_ID="11111111-2222-3333-4444-555555555555"
-SUBJECT="Automated Test Campaign and Newsletter "
+SUBJECT="Automated Test Campaign and Newsletter V2 "
 USER1="<UUID_USER_1>"
 USER2="<UUID_USER_2>"
 EMAIL1="hasrullahazis@gmail.com"

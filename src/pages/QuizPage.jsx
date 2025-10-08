@@ -1,331 +1,422 @@
 // src/pages/QuizPage.jsx
-import React, { useEffect, useCallback, useState, useMemo } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
-
-import QuizHeader from "@/components/quiz/QuizHeader";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
+import { fnAuthed } from "@/lib/apiClient";
 import QuestionCard from "@/components/quiz/QuestionCard";
-import QuizFooterNav from "@/components/quiz/QuizFooterNav";
-import SkeletonQuestion from "@/components/quiz/SkeletonQuestion";
-import QuestionNavigator from "@/components/quiz/QuestionNavigator";
-import QuizBanner from "@/components/quiz/QuizBanner";
-import UpgradeLimitModal from "@/components/quiz/UpgradeLimitModal";
 
-import { useQuizRuntime } from "@/hooks/useQuizRuntime";
-import { useSession } from "@/hooks/useSession";
-import { useSubscription } from "@/hooks/useSubscription";
-import { useProfile } from "@/hooks/useProfile";
-import { logEvent } from "@/lib/analytics";
+const FUNCTIONS_BASE = (import.meta.env.VITE_FUNCTIONS_BASE || "/.netlify/functions").replace(/\/+$/, "");
 
-function resolveStatus(session, subscription) {
-  if (!session) return "guest";
-  if (
-    subscription?.status === "active" ||
-    subscription?.plan === "pro" ||
-    subscription?.tier === "pro"
-  ) {
-    return "pro";
-  }
-  return "inactive";
+/** Helpers */
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+const idxToLetter = (i) => ["A", "B", "C", "D"][i] ?? "-";
+
+/** Normalisasi soal → format UI */
+function normalizeQuestion(q) {
+  const answerIndex = ["A", "B", "C", "D"].indexOf(String(q.answer_key || "A").toUpperCase());
+  const arr4 = (arr, fill = null) => {
+    const v = Array.isArray(arr) ? [...arr] : [];
+    while (v.length < 4) v.push(fill);
+    return v.slice(0, 4);
+  };
+  const choicesArr = Array.isArray(q.choices)
+    ? q.choices
+    : [q.choices?.A, q.choices?.B, q.choices?.C, q.choices?.D];
+
+  return {
+    id: q.id,
+    legacy_id: q.legacy_id || null,
+    question: q.question_text || "",
+    questionImage: q.question_image_url || null,
+    choices: arr4((choicesArr || []).map((c) => c ?? ""), ""),
+    choiceImages: arr4(q.choice_images, null),
+    explanations: arr4(q.explanations, ""),
+    correctIndex: (answerIndex >= 0 && answerIndex <= 3) ? answerIndex : 0,
+    tags: Array.isArray(q.tags) ? q.tags : [],
+    difficulty: q.difficulty || null,
+    category_path: Array.isArray(q.category_path) ? q.category_path : null,
+  };
 }
-function useQuery() {
-  return new URLSearchParams(useLocation().search);
+
+/** Progress bar komponen kecil */
+function ProgressBar({ value, total }) {
+  const pct = total ? clamp(Math.round((value / total) * 100), 0, 100) : 0;
+  return (
+    <div className="w-full h-2 rounded bg-slate-100 overflow-hidden">
+      <div
+        className="h-full bg-emerald-500 transition-all"
+        style={{ width: `${pct}%` }}
+        aria-label={`Progress ${pct}%`}
+      />
+    </div>
+  );
+}
+
+/** Navigator grid */
+function Navigator({ total, currentIndex, answers, flags, onJump }) {
+  return (
+    <div className="grid grid-cols-10 sm:grid-cols-12 md:grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
+      {Array.from({ length: total }).map((_, i) => {
+        const answered = answers[i] != null;
+        const flagged = !!flags[i];
+        return (
+          <button
+            key={i}
+            onClick={() => onJump(i)}
+            className={[
+              "text-xs h-7 rounded border px-2",
+              i === currentIndex
+                ? "border-slate-900 text-white bg-slate-900"
+                : answered
+                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                : "border-slate-200 bg-white text-slate-700",
+              flagged ? "ring-2 ring-amber-400" : "",
+            ].join(" ")}
+            title={flagged ? "Flagged" : answered ? "Answered" : "Unanswered"}
+          >
+            {i + 1}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function QuizPage() {
-  const navigate = useNavigate();
   const { aircraft, subject } = useParams();
-  const decodedSubject = decodeURIComponent(subject || "");
-  const query = useQuery();
+  const navigate = useNavigate();
+  const [search] = useSearchParams();
+  const mode = (search.get("mode") || "practice").toLowerCase() === "exam" ? "exam" : "practice";
 
-  // Difficulty dari URL
-  const levelParam = query.get("level");
-  const difficulty = levelParam
-    ? levelParam.split(",").map((s) => s.trim().toLowerCase())
-    : ["easy", "medium", "hard"];
-
-  // Opsional: include subkategori via ?desc=1
-  const includeDescendants = query.get("desc") === "1";
-
-  // Fetch soal
-  const { items: questions, loading, error } = useQuizRuntime({
-    category_slug: decodedSubject,
-    limit: 50,
-    difficulty,
-    include_descendants: includeDescendants,
-  });
-
-  // Auth & role
-  const { session, loading: sessionLoading } = useSession();
-  const { subscription, loading: subLoading } = useSubscription();
-  const { isAdmin, loading: profileLoading } = useProfile();
-
-  const status = resolveStatus(session, subscription);
-  const isGuest = status === "guest";
-  const isPro = status === "pro";
-  const isInactive = status === "inactive";
-  const adminOverride = !!isAdmin;
-  const blockUntilRoleKnown = !!session && profileLoading;
-
-  // Gating
-  const gatedTotal = useMemo(
-    () => (adminOverride || isPro ? questions.length : Math.min(questions.length, 10)),
-    [adminOverride, isPro, questions.length]
-  );
-
-  // State
+  const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [isReview, setIsReview] = useState(false);
+  /** answersById: { [questionId]: 0..3 } */
+  const [answersById, setAnswersById] = useState({});
+  /** answersByIndex: array ringkas utk navigator */
+  const answers = useMemo(() => {
+    const arr = Array.from({ length: questions.length }).map(() => null);
+    questions.forEach((q, i) => {
+      if (Number.isInteger(answersById[q.id])) arr[i] = answersById[q.id];
+    });
+    return arr;
+  }, [questions, answersById]);
+  /** Flag per index */
+  const [flags, setFlags] = useState({});
+  /** Timer */
+  const [durationSec, setDurationSec] = useState(0);
+  /** UI state */
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  /** Feedback instan (practice) */
+  const [showExplain, setShowExplain] = useState(false);
 
-  // Reset saat subject/level/gating berganti (hindari index out-of-range)
+  // Ambil soal
   useEffect(() => {
-    setCurrentIndex(0);
-    setAnswers({});
-    setShowExplanation(false);
-    setIsReview(false);
-  }, [decodedSubject, aircraft, levelParam, includeDescendants]);
+    let abort = new AbortController();
+    async function load() {
+      setLoading(true);
+      setErr("");
+      setShowExplain(false);
+      try {
+        const u = new URL(`${FUNCTIONS_BASE}/quiz-pull`, window.location.origin);
+        if (subject) u.searchParams.set("category_slug", subject);
+        u.searchParams.set("include_descendants", "1");
+        u.searchParams.set("limit", "20");
+        if (aircraft) u.searchParams.set("aircraft", aircraft);
+        u.searchParams.set("strict_aircraft", "0");
 
-  const viewIndex = Math.min(currentIndex, Math.max(gatedTotal - 1, 0));
-  const isLastByGate = viewIndex >= Math.max(gatedTotal - 1, 0);
-
-  // Analytics
-  useEffect(() => {
-    logEvent("quiz_view", { aircraft, subject: decodedSubject, difficulty });
-  }, [aircraft, decodedSubject, difficulty]);
-  useEffect(() => {
-    const q = questions[viewIndex];
-    if (q?.id) logEvent("question_view", { id: q.id, idx: viewIndex });
-  }, [questions, viewIndex]);
-
-  // Auto review (non-pro)
-  useEffect(() => {
-    if (adminOverride || isPro) return;
-    if (!loading && !isReview && gatedTotal > 0 && currentIndex >= gatedTotal) {
-      setIsReview(true);
+        const res = await fetch(u.toString().replace(window.location.origin, ""), {
+          method: "GET",
+          signal: abort.signal,
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok) throw new Error(`quiz-pull failed (${res.status})`);
+        const json = await res.json();
+        const items = Array.isArray(json?.items) ? json.items : [];
+        const normalized = items.map(normalizeQuestion);
+        setQuestions(normalized);
+        setCurrentIndex(0);
+        setAnswersById({});
+        setFlags({});
+        setDurationSec(0);
+      } catch (e) {
+        if (e.name !== "AbortError") {
+          setErr(e?.message || "Failed to load questions");
+        }
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [adminOverride, isPro, loading, isReview, currentIndex, gatedTotal]);
+    load();
+    return () => abort.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aircraft, subject]);
 
-  // Banner & modal
-  const bannerKey = `trialBanner:dismiss:${aircraft}:${decodedSubject}`;
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-  const [limitModalOpen, setLimitModalOpen] = useState(false);
-
+  // Timer sederhana
   useEffect(() => {
-    try { setBannerDismissed(localStorage.getItem(bannerKey) === "1"); } catch {}
-  }, [bannerKey]);
-  const dismissBanner = () => {
-    try { localStorage.setItem(bannerKey, "1"); } catch {}
-    setBannerDismissed(true);
-    logEvent("trial_banner_dismiss", { aircraft, subject: decodedSubject });
-  };
-  const shouldShowSlimBanner =
-    !adminOverride &&
-    !isPro &&
-    (isGuest || isInactive) &&
-    !bannerDismissed &&
-    !isReview &&
-    viewIndex <= 1 &&
-    gatedTotal > 0;
-
-  useEffect(() => {
-    if (shouldShowSlimBanner) {
-      logEvent("trial_banner_impression", { aircraft, subject: decodedSubject });
-    }
-  }, [shouldShowSlimBanner, aircraft, decodedSubject]);
-  useEffect(() => {
-    if (!adminOverride && !isPro && (isGuest || isInactive) && isLastByGate && showExplanation) {
-      setLimitModalOpen(true);
-      logEvent("trial_limit_modal_impression", { aircraft, subject: decodedSubject });
-    }
-  }, [adminOverride, isPro, isGuest, isInactive, isLastByGate, showExplanation, aircraft, decodedSubject]);
-
-  // CTA
-  const handleLogin = () => {
-    logEvent("cta_login_click", { aircraft, subject: decodedSubject });
-    window.location.href = "/login";
-  };
-  const handleUpgrade = () => {
-    logEvent("cta_upgrade_click", { aircraft, subject: decodedSubject });
-    window.location.href = "/pricing";
-  };
-
-  // Navigation
-  const handleNext = useCallback(() => {
-    if (!(adminOverride || isPro) && isLastByGate) {
-      setIsReview(true);
-      logEvent("session_finish", { total: gatedTotal, mode: "learn" });
-    } else {
-      setCurrentIndex((i) => Math.min(i + 1, questions.length - 1));
-      setShowExplanation(false);
-    }
-  }, [adminOverride, isPro, isLastByGate, gatedTotal, questions.length]);
-  const handlePrev = useCallback(() => {
-    setCurrentIndex((i) => Math.max(i - 1, 0));
+    const t = setInterval(() => setDurationSec((s) => s + 1), 1000);
+    return () => clearInterval(t);
   }, []);
-  const goBack = () => navigate(`/quiz/${aircraft}`);
 
-  // Loading / Error
-  if (loading || sessionLoading || subLoading || blockUntilRoleKnown) {
+  const total = questions.length;
+  const current = questions[currentIndex];
+
+  function handleAnswer(idx) {
+    if (!current) return;
+    setAnswersById((prev) => ({ ...prev, [current.id]: idx }));
+    // Reset explanation toggle per soal baru
+    setShowExplain(false);
+  }
+
+  function toggleFlag() {
+    setFlags((f) => ({ ...f, [currentIndex]: !f[currentIndex] }));
+  }
+
+  function gotoPrev() {
+    setCurrentIndex((i) => clamp(i - 1, 0, total - 1));
+    setShowExplain(false);
+  }
+  function gotoNext() {
+    setCurrentIndex((i) => clamp(i + 1, 0, total - 1));
+    setShowExplain(false);
+  }
+  function jumpTo(i) {
+    setCurrentIndex(clamp(i, 0, total - 1));
+    setShowExplain(false);
+  }
+
+  const selectedIdx = current ? answersById[current.id] : null;
+  const isAnswered = Number.isInteger(selectedIdx);
+  const isCorrect = isAnswered ? selectedIdx === current?.correctIndex : null;
+
+  const progressText = useMemo(() => {
+    if (!total) return "0 / 0";
+    return `${currentIndex + 1} / ${total}`;
+  }, [currentIndex, total]);
+
+  const durationText = useMemo(() => {
+    const m = Math.floor(durationSec / 60);
+    const s = durationSec % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }, [durationSec]);
+
+  async function onFinish() {
+    if (!questions.length || submitting) return;
+    // Kumpulkan jawaban (kalau mau wajib semua, hilangkan filter di bawah)
+    const items = questions
+      .map((q) => ({
+        question_id: q.id,
+        legacy_id: q.legacy_id || null,
+        answer_index: Number.isInteger(answersById[q.id]) ? answersById[q.id] : -1,
+        correct_index: q.correctIndex,
+        time_spent_sec: null,
+        tags: q.tags || [],
+        difficulty: q.difficulty || null,
+        category_path: q.category_path || null,
+      }))
+      .filter((it) => it.answer_index >= 0);
+
+    if (!items.length) {
+      alert("Belum ada jawaban yang dipilih.");
+      return;
+    }
+
+    const body = {
+      aircraft: aircraft || null,
+      category_root_slug: aircraft || null,
+      category_slug: subject || null,
+      include_descendants: true,
+      mode, // practice | exam
+      duration_sec: durationSec,
+      meta: { appVersion: "1.0.0", device: "web" },
+      items,
+    };
+
+    try {
+      setSubmitting(true);
+      const res = await fnAuthed("/.netlify/functions/quiz-submit", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      if (res?.attempt_id) {
+        navigate(`/quiz/result/${res.attempt_id}`);
+      } else {
+        // fallback (seharusnya ada attempt_id)
+        alert(`Score: ${res.correct_count}/${res.question_count} (${res.score}%)`);
+      }
+    } catch (e) {
+      alert(`Submit gagal: ${e?.message || e}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /** === Render === */
+  if (loading) {
     return (
-      <div className="max-w-3xl mx-auto p-4">
-        <SkeletonQuestion />
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="animate-pulse text-slate-500">Loading questions…</div>
       </div>
     );
   }
-  if (error) return <div className="p-6 text-red-600">Error: {String(error.message || error)}</div>;
-  if (!questions.length) {
+  if (err) {
     return (
-      <div className="max-w-3xl mx-auto p-4">
-        <button onClick={goBack} className="mb-4 text-sm text-blue-600 hover:underline">
-          ← Back to Subjects
-        </button>
-        <div className="border rounded-lg p-4 bg-white dark:bg-gray-800">
-          No questions found.
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="p-3 rounded bg-red-50 text-red-700 border border-red-200">{err}</div>
+      </div>
+    );
+  }
+  if (!total) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="p-3 rounded bg-amber-50 text-amber-800 border border-amber-200">
+          Belum ada soal untuk kombinasi ini.
+        </div>
+        <div className="mt-3">
+          <Link to="/quiz" className="text-blue-600 hover:underline">Kembali ke pilihan aircraft</Link>
         </div>
       </div>
     );
   }
-
-  const q = questions[viewIndex];
-  const selected = answers[viewIndex] ?? null;
-  const correctCount = questions.slice(0, gatedTotal).reduce((acc, qq, i) => {
-    const pick = answers[i];
-    return acc + (qq?.correctIndex === pick ? 1 : 0);
-  }, 0);
-
-  // Difficulty Selector
-  const changeDifficulty = (e) => {
-    const val = e.target.value;
-    const newParam = val === "all" ? "" : `?level=${val}${includeDescendants ? "&desc=1" : ""}`;
-    navigate(`/quiz/${aircraft}/${subject}${newParam}`);
-  };
-
-  const progressPct = gatedTotal ? ((viewIndex + 1) / gatedTotal) * 100 : 0;
 
   return (
-    <div className="max-w-3xl mx-auto p-4 text-gray-900 dark:text-white">
-      {/* Back + Level */}
-      <div className="flex justify-between items-center mb-3">
-        <button
-          onClick={goBack}
-          className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+    <div className="max-w-4xl mx-auto p-4">
+      {/* Header */}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm text-slate-500">
+          Aircraft: <span className="font-medium">{aircraft || "-"}</span> &nbsp;•&nbsp; Subject:{" "}
+          <span className="font-medium">{subject || "-"}</span> &nbsp;•&nbsp; Mode:{" "}
+          <span className="font-medium capitalize">{mode}</span>
+        </div>
+        <div className="text-sm tabular-nums text-slate-600">⏱ {durationText}</div>
+      </div>
+
+      {/* Progress */}
+      <div className="mb-2">
+        <ProgressBar value={currentIndex + 1} total={total} />
+        <div className="mt-1 text-right text-xs text-slate-500">{progressText}</div>
+      </div>
+
+      {/* Kartu soal */}
+      {current && (
+        <div
+          className={[
+            "rounded-2xl border bg-white p-3 shadow-sm",
+            mode === "practice" && isAnswered
+              ? isCorrect
+                ? "border-emerald-300 ring-1 ring-emerald-200"
+                : "border-rose-300 ring-1 ring-rose-200"
+              : "border-slate-200",
+          ].join(" ")}
         >
-          ← Back to Subjects
-        </button>
+          <QuestionCard
+            key={current.id}
+            question={current}
+            index={currentIndex}
+            total={total}
+            selected={answersById[current.id]}
+            onSelect={handleAnswer}
+          />
+
+          {/* Feedback instan hanya di practice mode */}
+          {mode === "practice" && isAnswered && (
+            <div className="mt-3 text-sm">
+              <div
+                className={[
+                  "inline-flex items-center gap-2 rounded px-2 py-1 border",
+                  isCorrect
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200",
+                ].join(" ")}
+              >
+                {isCorrect ? "✓ Jawaban benar" : `✗ Jawaban salah (Kunci: ${idxToLetter(current.correctIndex)})`}
+              </div>
+
+              {/* Toggle Explanation */}
+              {current.explanations?.[current.correctIndex] && (
+                <button
+                  onClick={() => setShowExplain((v) => !v)}
+                  className="ml-2 text-slate-700 underline-offset-2 hover:underline"
+                >
+                  {showExplain ? "Sembunyikan penjelasan" : "Lihat penjelasan"}
+                </button>
+              )}
+
+              {showExplain && current.explanations?.[current.correctIndex] && (
+                <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2 text-slate-700">
+                  {current.explanations[current.correctIndex]}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Toolbar bawah */}
+      <div className="mt-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <select
-            className="select select-sm select-bordered"
-            value={levelParam || "all"}
-            onChange={changeDifficulty}
+          <button
+            type="button"
+            onClick={toggleFlag}
+            className={[
+              "px-3 py-2 rounded border",
+              flags[currentIndex] ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-white border-slate-200 text-slate-700",
+            ].join(" ")}
           >
-            <option value="all">All Levels</option>
-            <option value="easy">Easy</option>
-            <option value="medium">Medium</option>
-            <option value="hard">Hard</option>
-          </select>
+            {flags[currentIndex] ? "★ Flagged" : "☆ Flag"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const firstUnanswered = answers.findIndex((v) => v == null);
+              jumpTo(firstUnanswered !== -1 ? firstUnanswered : 0);
+            }}
+            className="px-3 py-2 rounded border bg-white border-slate-200 text-slate-700"
+            title="Loncat ke soal belum dijawab"
+          >
+            Jump to Unanswered
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={gotoPrev}
+            disabled={currentIndex === 0}
+            className="px-3 py-2 rounded bg-slate-200 text-slate-800 disabled:opacity-50"
+          >
+            ← Prev
+          </button>
+          <button
+            type="button"
+            onClick={gotoNext}
+            disabled={currentIndex === total - 1}
+            className="px-3 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
+          >
+            Next →
+          </button>
+          <button
+            type="button"
+            onClick={onFinish}
+            disabled={submitting}
+            className="ml-2 px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {submitting ? "Submitting…" : "Finish & Submit"}
+          </button>
         </div>
       </div>
 
-      {/* Slim Banner */}
-      {shouldShowSlimBanner && (
-        <div className="mb-3">
-          <QuizBanner
-            variant={isGuest ? "guest" : "inactive"}
-            onLogin={handleLogin}
-            onUpgrade={handleUpgrade}
-            size="slim"
-            onDismiss={dismissBanner}
-          />
-        </div>
-      )}
-
-      {isReview && !(adminOverride || isPro) ? (
-        <>
-          {/* Grade Report */}
-          <div className="mb-4 border p-4 rounded-lg shadow bg-white dark:bg-gray-800">
-            <h2 className="text-xl font-bold mb-1">Grade Report</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {aircraft.toUpperCase()} - {decodedSubject.toUpperCase()} | Exam Summary
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Correct {correctCount} of {gatedTotal} questions ({Math.round((correctCount / gatedTotal) * 100)}%)
-            </p>
-          </div>
-
-          {questions.slice(0, gatedTotal).map((question, idx) => (
-            <QuestionCard
-              key={question.id ?? idx}
-              question={question}
-              index={idx}
-              total={gatedTotal}
-              selected={answers[idx]}
-              showExplanation
-              isReview
-            />
-          ))}
-        </>
-      ) : (
-        <>
-          <QuizHeader
-            aircraft={aircraft}
-            subject={decodedSubject}
-            currentIndex={viewIndex}
-            total={gatedTotal}
-            level={q.level || q.difficulty}  // fallback aman
-            source={q.source}
-          />
-
-          {/* Progress bar */}
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3 dark:bg-gray-700">
-            <div
-              className="bg-blue-600 h-2.5 rounded-full"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-
-          <main role="main" className="pb-20">
-            <QuestionCard
-              question={q}
-              index={viewIndex}
-              total={gatedTotal}
-              selected={selected}
-              onSelect={(i) => {
-                setAnswers((prev) => ({ ...prev, [viewIndex]: i }));
-                setShowExplanation(true);
-              }}
-              showExplanation={showExplanation}
-            />
-
-            <div className="mt-4">
-              <QuestionNavigator
-                total={gatedTotal}
-                currentIndex={viewIndex}
-                answers={answers}
-                onJump={(i) => setCurrentIndex(i)}
-              />
-            </div>
-          </main>
-
-          <QuizFooterNav
-            currentIndex={viewIndex}
-            total={gatedTotal}
-            showExplanation={showExplanation}
-            onNext={handleNext}
-            onPrev={handlePrev}
-            disableNextUntilAnswered
-            hasAnswered={selected !== null}
-          />
-        </>
-      )}
-
-      <UpgradeLimitModal
-        open={limitModalOpen}
-        onClose={() => setLimitModalOpen(false)}
-        onLogin={handleLogin}
-        onUpgrade={handleUpgrade}
-        total={gatedTotal}
-      />
+      {/* Navigator grid */}
+      <div className="mt-4 p-3 rounded-2xl border border-slate-200 bg-white">
+        <div className="mb-2 text-sm text-slate-500">Question Navigator</div>
+        <Navigator
+          total={total}
+          currentIndex={currentIndex}
+          answers={answers}
+          flags={flags}
+          onJump={jumpTo}
+        />
+      </div>
     </div>
   );
 }

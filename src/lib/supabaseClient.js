@@ -1,16 +1,5 @@
 // src/lib/supabaseClient.js
-import { createClient } from "@supabase/supabase-js";
+// ❗️Alias ke client utama — tanpa createClient lagi
+import { supabase, apiFetch, apiFetchAuthed, getBearer } from "./apiClient";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase env variables are missing (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+export { supabase, apiFetch, apiFetchAuthed, getBearer };

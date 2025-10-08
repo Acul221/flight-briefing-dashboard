@@ -1,47 +1,58 @@
 // src/layouts/AdminLayout.jsx
+import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
-const menus = [
-  { name: "Dashboard", path: "/admin" },
-  { name: "Users", path: "/admin/users" },
-  { name: "Orders", path: "/admin/orders" },
-  { name: "Promos", path: "/admin/promos" },
-  { name: "Newsletter", path: "/admin/newsletter" },
-];
+function NavItem({ to, children }) {
+  return (
+    <NavLink
+      to={to}
+      end
+      className={({ isActive }) =>
+        `block px-3 py-2 rounded hover:bg-gray-100 ${
+          isActive ? "bg-gray-200 font-medium" : "text-gray-700"
+        }`
+      }
+    >
+      {children}
+    </NavLink>
+  );
+}
 
 export default function AdminLayout() {
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-[240px_1fr]">
       {/* Sidebar */}
-      <aside className="w-64 bg-gray-900 text-gray-100 flex flex-col">
-        <div className="p-4 text-2xl font-bold">Admin</div>
-        <nav className="flex flex-col gap-1 px-2">
-          {menus.map((m) => (
-            <NavLink
-              key={m.path}
-              to={m.path}
-              className={({ isActive }) =>
-                `px-3 py-2 rounded-md ${
-                  isActive ? "bg-blue-600" : "hover:bg-gray-700"
-                }`
-              }
-            >
-              {m.name}
-            </NavLink>
-          ))}
+      <aside className="border-r bg-white">
+        <div className="p-4 border-b">
+          <div className="text-lg font-bold">Admin</div>
+          <div className="text-xs text-gray-500">SkyDeckPro</div>
+        </div>
+
+        <nav className="p-3 space-y-1">
+          <NavItem to="/admin">Dashboard</NavItem>
+
+          {/* ✅ Tambahkan menu Questions -> diarahkan ke /admin/questions (akan auto-redirect ke /list) */}
+          <NavItem to="/admin/questions">Questions</NavItem>
+
+          <div className="mt-3 text-xs uppercase tracking-wider text-gray-500 px-3">Data</div>
+          <NavItem to="/admin/users">Users</NavItem>
+          <NavItem to="/admin/orders">Orders</NavItem>
+
+          <div className="mt-3 text-xs uppercase tracking-wider text-gray-500 px-3">Marketing</div>
+          <NavItem to="/admin/promos">Promos</NavItem>
+          <NavItem to="/admin/newsletter">Newsletter</NavItem>
+
+          <div className="mt-3 text-xs uppercase tracking-wider text-gray-500 px-3">Content</div>
+          <NavItem to="/admin/categories">Categories</NavItem>
         </nav>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        <header className="h-14 bg-white shadow px-4 flex items-center justify-between">
-          <h2 className="font-semibold">Admin Panel</h2>
-          <button className="text-sm text-gray-600">Logout</button>
-        </header>
-        <main className="flex-1 p-6 bg-white">
+      {/* Content */}
+      <main className="bg-gray-50">
+        <div className="p-4">
           <Outlet />
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

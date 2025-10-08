@@ -1,10 +1,12 @@
-// src/lib/apiClient-mini.js
-import { createClient } from '@supabase/supabase-js';
-export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+// ❗️Mini alias — JANGAN bikin client baru
+import supabase, { getBearer, apiFetch, apiFetchAuthed } from "./apiClient";
+
+export { supabase, getBearer, apiFetch, apiFetchAuthed };
+export default supabase;
 
 export async function authorizedHeaders() {
-  const { data: { session } } = await supabase.auth.getSession();
-  const headers = { 'Content-Type': 'application/json' };
-  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  const token = await getBearer();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
