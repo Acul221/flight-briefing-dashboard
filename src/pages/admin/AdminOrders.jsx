@@ -1,6 +1,6 @@
-// src/pages/admin/AdminOrders.jsx
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/apiClient";
+
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -10,27 +10,17 @@ import {
   ResponsiveContainer, BarChart, Bar
 } from "recharts";
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
-
-// --- helpers ---
-const formatIDR = (n) =>
-  (n ?? 0).toLocaleString("id-ID", { maximumFractionDigits: 0 });
+const formatIDR = (n) => (n ?? 0).toLocaleString("id-ID", { maximumFractionDigits: 0 });
 
 export default function AdminOrders() {
-  // raw data
   const [orders, setOrders] = useState([]);
-  // analytics views
-  const [trend, setTrend] = useState([]);            // revenue_trend (daily)
-  const [monthly, setMonthly] = useState([]);        // monthly_revenue
-  const [entitlements, setEntitlements] = useState([]); // active_entitlements
-  const [churn, setChurn] = useState([]);            // churn_rate
-  const [topCustomers, setTopCustomers] = useState([]); // top_customers
+  const [trend, setTrend] = useState([]);
+  const [monthly, setMonthly] = useState([]);
+  const [entitlements, setEntitlements] = useState([]);
+  const [churn, setChurn] = useState([]);
+  const [topCustomers, setTopCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ui state
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -40,19 +30,14 @@ export default function AdminOrders() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
-  // ---- fetchers ----
   const fetchOrders = async () => {
     const { data, error } = await supabase
       .from("orders")
       .select("*")
       .order("transaction_time", { ascending: false })
       .limit(1000);
-    if (error) {
-      console.error(error);
-      toast.error("Gagal load orders");
-    } else {
-      setOrders(data || []);
-    }
+    if (error) { console.error(error); toast.error("Gagal load orders"); }
+    else setOrders(data || []);
     setLoading(false);
   };
 
@@ -65,58 +50,38 @@ export default function AdminOrders() {
         supabase.from("churn_rate").select("*"),
         supabase.from("top_customers").select("*"),
       ]);
-
-    setTrend(t || []);
-    setMonthly(m || []);
-    setEntitlements(ent || []);
-    setChurn(ch || []);
-    setTopCustomers(top || []);
+    setTrend(t || []); setMonthly(m || []); setEntitlements(ent || []); setChurn(ch || []); setTopCustomers(top || []);
   };
 
-  // ---- effects ----
   useEffect(() => {
     fetchOrders();
     fetchAnalytics();
 
-    // realtime: orders
     const sub = supabase
       .channel("orders")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            setOrders((prev) => [payload.new, ...prev]);
-          } else if (payload.eventType === "UPDATE") {
-            setOrders((prev) =>
-              prev.map((o) => (o.id === payload.new.id ? payload.new : o))
-            );
-          }
-          toast.success("🔔 Order updated!");
-          // refresh analytics views
-          fetchAnalytics();
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
+        if (payload.eventType === "INSERT") setOrders((prev) => [payload.new, ...prev]);
+        else if (payload.eventType === "UPDATE") setOrders((prev) => prev.map((o) => (o.id === payload.new.id ? payload.new : o)));
+        toast.success("🔔 Order updated!");
+        fetchAnalytics();
+      })
       .subscribe();
 
     return () => supabase.removeChannel(sub);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- derived: filters & pagination ----
   const filteredOrders = orders.filter((o) => {
     const matchStatus = filter === "all" || o.status === filter;
     const matchPayment = paymentFilter === "all" || o.payment_type === paymentFilter;
     const matchPlan = planFilter === "all" || o.plan === planFilter;
 
     const oid = (o.order_id ?? "").toString().toLowerCase();
-    const matchSearch = search === "" || oid.includes(search.toLowerCase());
+    const matchSearch = !search || oid.includes(search.toLowerCase());
 
     const txDate = o.transaction_time ? new Date(o.transaction_time) : null;
     const matchFrom = dateFrom ? (txDate && txDate >= new Date(dateFrom)) : true;
-    const matchTo = dateTo
-      ? (txDate && txDate <= new Date(new Date(dateTo).setHours(23, 59, 59)))
-      : true;
+    const matchTo = dateTo ? (txDate && txDate <= new Date(new Date(dateTo).setHours(23, 59, 59))) : true;
 
     return matchStatus && matchPayment && matchPlan && matchSearch && matchFrom && matchTo;
   });
@@ -125,122 +90,65 @@ export default function AdminOrders() {
   const pagedOrders = filteredOrders.slice(startIndex, startIndex + pageSize);
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
 
-  // ---- stats ----
   const total = filteredOrders.length;
   const successCount = filteredOrders.filter((o) => o.status === "success").length;
   const pendingCount = filteredOrders.filter((o) => o.status === "pending").length;
-  const failedCount = filteredOrders.filter(
-    (o) => o.status === "failed" || o.status === "expire"
-  ).length;
-  const revenue = filteredOrders
-    .filter((o) => o.status === "success")
-    .reduce((sum, o) => sum + (o.amount || 0), 0);
+  const failedCount = filteredOrders.filter((o) => o.status === "failed" || o.status === "expire").length;
+  const revenue = filteredOrders.filter((o) => o.status === "success").reduce((sum, o) => sum + (o.amount || 0), 0);
 
-  // ARPU berdasar active entitlements (dari view)
   const totalActive = entitlements.reduce((sum, e) => sum + (e.active_users || 0), 0);
   const arpu = totalActive > 0 ? Math.round(revenue / totalActive) : 0;
 
-  // ---- exports ----
   const exportCSV = () => {
     const header = ["Order ID", "User ID", "Plan", "Amount", "Status", "Payment Type", "Transaction Time"];
     const rows = filteredOrders.map((o) => [
-      o.order_id,
-      o.user_id || "-",
-      o.plan || "-",
-      o.amount ?? 0,
-      o.status,
-      o.payment_type || "-",
+      o.order_id, o.user_id || "-", o.plan || "-", o.amount ?? 0, o.status, o.payment_type || "-",
       o.transaction_time ? new Date(o.transaction_time).toLocaleString("id-ID") : "-",
     ]);
-    const csv = [header, ...rows].map((row) =>
-      row
-        .map((cell) => (typeof cell === "string" && cell.includes(",") ? `"${cell}"` : cell))
-        .join(",")
-    ).join("\n");
-
+    const csv = [header, ...rows].map((r) => r.map((c) => (typeof c === "string" && c.includes(",") ? `"${c}"` : c)).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "orders.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement("a"); a.href = url; a.download = "orders.csv"; a.click(); URL.revokeObjectURL(url);
     toast.success("✅ Exported to CSV");
   };
 
   const exportPDF = () => {
     const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(16);
-    doc.text("Orders Report – SkyDeckPro", 14, 14);
-
-    const tableColumn = ["Order ID", "User ID", "Plan", "Amount (Rp)", "Status", "Payment Type", "Transaction Time"];
-    const tableRows = filteredOrders.map((o) => [
-      o.order_id,
-      o.user_id || "-",
-      o.plan || "-",
-      `Rp ${formatIDR(o.amount)}`,
-      o.status,
-      o.payment_type || "-",
+    doc.setFontSize(16); doc.text("Orders Report – SkyDeckPro", 14, 14);
+    const head = ["Order ID", "User ID", "Plan", "Amount (Rp)", "Status", "Payment Type", "Transaction Time"];
+    const body = filteredOrders.map((o) => [
+      o.order_id, o.user_id || "-", o.plan || "-", `Rp ${formatIDR(o.amount)}`, o.status, o.payment_type || "-",
       o.transaction_time ? new Date(o.transaction_time).toLocaleString("id-ID") : "-",
     ]);
+    autoTable(doc, { head: [head], body, startY: 22, styles: { fontSize: 9 }, headStyles: { fillColor: [41, 128, 185] },
+      alternateRowStyles: { fillColor: [245, 245, 245] }, margin: { left: 12, right: 12 } });
 
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 22,
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [41, 128, 185] },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-      margin: { left: 12, right: 12 },
-    });
-
-    // footer info
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(9);
-      doc.text(
-        `Generated: ${new Date().toLocaleString("id-ID")}`,
-        12,
-        doc.internal.pageSize.getHeight() - 8
-      );
+      doc.setPage(i); doc.setFontSize(9);
+      doc.text(`Generated: ${new Date().toLocaleString("id-ID")}`, 12, doc.internal.pageSize.getHeight() - 8);
       const footer = `Page ${i} of ${pageCount}`;
-      doc.text(
-        footer,
-        doc.internal.pageSize.getWidth() - 12 - doc.getTextWidth(footer),
-        doc.internal.pageSize.getHeight() - 8
-      );
+      doc.text(footer, doc.internal.pageSize.getWidth() - 12 - doc.getTextWidth(footer), doc.internal.pageSize.getHeight() - 8);
     }
-
-    doc.save("orders.pdf");
-    toast.success("📄 Exported to PDF");
+    doc.save("orders.pdf"); toast.success("📄 Exported to PDF");
   };
 
   const exportExcel = () => {
     const data = filteredOrders.map((o) => ({
-      "Order ID": o.order_id,
-      "User ID": o.user_id || "-",
-      Plan: o.plan || "-",
-      Amount: o.amount ?? 0,
-      Status: o.status,
-      "Payment Type": o.payment_type || "-",
-      "Transaction Time": o.transaction_time ? new Date(o.transaction_time).toLocaleString("id-ID") : "-",
+      "Order ID": o.order_id, "User ID": o.user_id || "-", Plan: o.plan || "-", Amount: o.amount ?? 0, Status: o.status,
+      "Payment Type": o.payment_type || "-", "Transaction Time": o.transaction_time ? new Date(o.transaction_time).toLocaleString("id-ID") : "-",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Orders");
-    XLSX.writeFile(wb, "orders.xlsx");
-    toast.success("📊 Exported to Excel");
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Orders");
+    XLSX.writeFile(wb, "orders.xlsx"); toast.success("📊 Exported to Excel");
   };
 
   const COLORS = ["#4ade80", "#facc15", "#f87171", "#60a5fa"];
 
-  // ---- UI ----
   return (
-    <div className="max-w-7xl mx-auto p-6 dark:bg-gray-900 dark:text-gray-100 min-h-screen transition-colors">
+    <div className="max-w-7xl mx-auto p-6 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
       <h1 className="text-3xl font-bold mb-6">📊 Orders Dashboard</h1>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <StatCard title="Total Orders" value={total} color="blue" />
         <StatCard title="Success" value={successCount} color="green" />
@@ -249,32 +157,21 @@ export default function AdminOrders() {
         <StatCard title="ARPU (Rp)" value={formatIDR(arpu)} color="blue" />
       </div>
 
-      {/* Revenue aggregate (current filtered set) */}
       <div className="p-4 bg-purple-50 dark:bg-purple-900/40 rounded-xl shadow mb-6">
         <p className="text-sm text-gray-600 dark:text-gray-300">Total Revenue (filtered)</p>
         <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">Rp {formatIDR(revenue)}</p>
       </div>
 
-      {/* Filters */}
       <Filters
-        filter={filter}
-        setFilter={setFilter}
-        search={search}
-        setSearch={setSearch}
-        paymentFilter={paymentFilter}
-        setPaymentFilter={setPaymentFilter}
-        planFilter={planFilter}
-        setPlanFilter={setPlanFilter}
-        dateFrom={dateFrom}
-        setDateFrom={setDateFrom}
-        dateTo={dateTo}
-        setDateTo={setDateTo}
-        exportCSV={exportCSV}
-        exportPDF={exportPDF}
-        exportExcel={exportExcel}
+        filter={filter} setFilter={setFilter}
+        search={search} setSearch={setSearch}
+        paymentFilter={paymentFilter} setPaymentFilter={setPaymentFilter}
+        planFilter={planFilter} setPlanFilter={setPlanFilter}
+        dateFrom={dateFrom} setDateFrom={setDateFrom}
+        dateTo={dateTo} setDateTo={setDateTo}
+        exportCSV={exportCSV} exportPDF={exportPDF} exportExcel={exportExcel}
       />
 
-      {/* Charts: Daily Revenue & Payment Distribution */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">
           <h2 className="font-semibold mb-2">Revenue Trend (Daily)</h2>
@@ -284,7 +181,7 @@ export default function AdminOrders() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="revenue" stroke="#4ade80" />
+              <Line type="monotone" dataKey="revenue" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -313,7 +210,6 @@ export default function AdminOrders() {
         </div>
       </div>
 
-      {/* Charts: Monthly Revenue & Top Customers */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">
           <h2 className="font-semibold mb-2">Monthly Revenue</h2>
@@ -323,7 +219,7 @@ export default function AdminOrders() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="revenue" fill="#60a5fa" />
+              <Bar dataKey="revenue" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -356,7 +252,6 @@ export default function AdminOrders() {
         </div>
       </div>
 
-      {/* Entitlements & Churn */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow">
           <h2 className="font-semibold mb-2">Active Entitlements</h2>
@@ -417,7 +312,6 @@ export default function AdminOrders() {
         </div>
       </div>
 
-      {/* Orders table */}
       {loading ? (
         <p>Loading...</p>
       ) : (
@@ -429,8 +323,6 @@ export default function AdminOrders() {
     </div>
   );
 }
-
-/* ========= Sub Components ========= */
 
 function StatCard({ title, value, color }) {
   const colorMap = {
@@ -528,9 +420,7 @@ function OrdersTable({ pagedOrders }) {
             </tr>
           ))}
           {pagedOrders.length === 0 && (
-            <tr>
-              <td className="p-3 text-center" colSpan={7}>No orders</td>
-            </tr>
+            <tr><td className="p-3 text-center" colSpan={7}>No orders</td></tr>
           )}
         </tbody>
       </table>
@@ -541,21 +431,9 @@ function OrdersTable({ pagedOrders }) {
 function PaginationControls({ page, totalPages, setPage }) {
   return (
     <div className="flex justify-center mt-4 gap-2">
-      <button
-        disabled={page === 1}
-        onClick={() => setPage(page - 1)}
-        className="px-3 py-1 border rounded disabled:opacity-50"
-      >
-        Prev
-      </button>
+      <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border rounded disabled:opacity-50">Prev</button>
       <span>Page {page} of {totalPages}</span>
-      <button
-        disabled={page === totalPages}
-        onClick={() => setPage(page + 1)}
-        className="px-3 py-1 border rounded disabled:opacity-50"
-      >
-        Next
-      </button>
+      <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border rounded disabled:opacity-50">Next</button>
     </div>
   );
 }

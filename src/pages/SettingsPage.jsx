@@ -1,10 +1,8 @@
-// src/pages/SettingsPage.jsx
 import { useEffect, useState, Suspense, lazy } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 
 import Breadcrumb from "@/components/ui/Breadcrumb";
-import QuizEditorMaster from "@/pages/QuizEditorMaster";
 import PasteNotamForm from "@/components/PasteNotamForm";
 import AdminPromos from "@/pages/admin/AdminPromos";
 
@@ -20,7 +18,6 @@ export default function SettingsPage() {
   // accordions
   const [showRacSettings, setShowRacSettings] = useState(false);
   const [showPromos, setShowPromos] = useState(false);
-  const [showQuizEditor, setShowQuizEditor] = useState(false);
   const [showNotamUploader, setShowNotamUploader] = useState(false);
   const [showRoiTester, setShowRoiTester] = useState(false);
   const [showNewsletterLogs, setShowNewsletterLogs] = useState(false);
@@ -174,12 +171,20 @@ export default function SettingsPage() {
           </p>
         </div>
         {isAdmin && (
-          <Link
-            to="/admin"
-            className="px-3 py-1.5 rounded bg-gray-900 text-white text-sm hover:bg-black"
-          >
-            Admin Area
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              to="/admin"
+              className="px-3 py-1.5 rounded border hover:bg-gray-50 dark:hover:bg-slate-700"
+            >
+              Admin Area
+            </Link>
+            <Link
+              to="/admin/questions/new"
+              className="px-3 py-1.5 rounded bg-gray-900 text-white text-sm hover:bg-black"
+            >
+              Question Editor
+            </Link>
+          </div>
         )}
       </div>
 
@@ -281,8 +286,12 @@ export default function SettingsPage() {
           <Badge tone={isPro ? "green" : status === "inactive" ? "yellow" : "gray"}>
             {isPro ? "Active Pro" : status === "inactive" ? "Inactive" : "Free/Guest"}
           </Badge>
-          <span className="text-sm text-gray-600">Plan: {planText}</span>
-          {isPro && expires && <span className="text-sm text-gray-600">Expires: {expires}</span>}
+          <span className="text-sm text-gray-600">Plan: {isPro ? (current?.plan || "Pro") : "Free"}</span>
+          {isPro && current?.current_period_end && (
+            <span className="text-sm text-gray-600">
+              Expires: {new Date(current.current_period_end).toLocaleDateString()}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
@@ -355,8 +364,7 @@ export default function SettingsPage() {
       {/* Admin (role-gated) */}
       {isAdmin && (
         <>
-          {/* existing accordions ... */}
-
+          {/* contoh accordion lainnya tetap */}
           <Accordion
             title="Show Newsletter Logs"
             open={showNewsletterLogs}

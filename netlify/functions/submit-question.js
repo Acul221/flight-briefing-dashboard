@@ -4,13 +4,14 @@ const { Client } = require("@notionhq/client");
 const { createClient } = require("@supabase/supabase-js");
 
 const {
+  // Secrets & endpoints
   ADMIN_API_SECRET,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE,
   NOTION_TOKEN,
   NOTION_DB_MASTER,
 
-  // Optional overrides (boleh kosong; kita auto-deteksi juga)
+  // Optional overrides (boleh kosong; kita auto-detect)
   NOTION_PROP_TITLE,
   NOTION_PROP_QUESTION,
   NOTION_PROP_Q_IMAGE,
@@ -23,14 +24,18 @@ const {
   NOTION_PROP_CATEGORIES,   // multi-select agregat (opsional)
   NOTION_PROP_STATUS,       // select Draft/Published/Archived (opsional)
 
-  ADMIN_ALLOWED_ORIGIN,
+  // CORS & safety
+  ADMIN_ALLOWED_ORIGIN,     // "https://admin.skydeckpro.id,https://app.skydeckpro.id"
+  ALLOWED_IMAGE_HOSTS       // "xyz.supabase.co,cdn.example.com" (opsional)
 } = process.env;
 
+// ---- Clients ----
 const notion = new Client({ auth: NOTION_TOKEN });
 const sba = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+// ---- CORS ----
 const CORS = {
   "Access-Control-Allow-Origin": ADMIN_ALLOWED_ORIGIN || "*",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, x-admin-secret",
@@ -40,6 +45,7 @@ const CORS = {
 };
 const json = (status, body) => ({ statusCode: status, headers: CORS, body: JSON.stringify(body) });
 
+// ---- Utils ----
 const LETTERS = ["A", "B", "C", "D"];
 const LETTER_OF = { 0: "A", 1: "B", 2: "C", 3: "D" };
 
@@ -63,6 +69,43 @@ const arrCsvToArray = (val) => {
   return String(val).split(",").map((t) => t.trim()).filter(Boolean);
 };
 
+// ---- image URL safety (opsional) ----
+const ALLOWED_IMG = (ALLOWED_IMAGE_HOSTS || "")
+  .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+
+function isSafeHttpUrl(u) {
+  if (!u) return false;
+  try {
+    const url = new URL(String(u));
+    if (!/^https?:$/.test(url.protocol)) return false;
+    if (ALLOWED_IMG.length && !ALLOWED_IMG.includes(url.hostname.toLowerCase())) return false;
+    return true;
+  } catch { return false; }
+}
+
+// Normalizer kecil: pilih alias field yang tersedia
+const pick = (...vals) => vals.find(v => v !== undefined && v !== null);
+
+// Choice image urls: terima 3 varian
+function normalizeChoiceImageUrls(body) {
+  const raw = pick(body.choiceImageUrls, body.choice_images, body.choiceImages);
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw.slice(0, 4) : [];
+  while (arr.length < 4) arr.push(null);
+  return arr.map((x) => (isSafeHttpUrl(x) ? String(x).trim() : null));
+}
+
+// ---- tiny rate-limit (per instance) ----
+const BUCKET = new Map();
+function ratelimit(ip, limit = 60, windowMs = 60_000) {
+  const now = Date.now();
+  const it = BUCKET.get(ip) ?? { c: 0, ts: now };
+  if (now - it.ts > windowMs) { it.c = 0; it.ts = now; }
+  it.c++; BUCKET.set(ip, it);
+  if (it.c > limit) { const e = new Error("too_many_requests"); e.statusCode = 429; throw e; }
+}
+
+// ---- Audit ----
 async function auditLog({ actor = null, action, status, meta }) {
   try {
     await sba.from("admin_audit_logs").insert({
@@ -75,6 +118,7 @@ async function auditLog({ actor = null, action, status, meta }) {
   }
 }
 
+// ---- Admin check ----
 async function requireAdmin(event) {
   const xadm = event.headers?.["x-admin-secret"] || event.headers?.["X-Admin-Secret"];
   if (xadm && ADMIN_API_SECRET && xadm === ADMIN_API_SECRET) return { via: "secret" };
@@ -112,11 +156,10 @@ async function ensureCategory({ label, parentId = null, createIfMissing = true }
     .select()
     .single();
 
-  if (error && (error.code === "23505" || /duplicate key.*categories_slug_key/i.test(error.message))) {
-    throw new Error(
-      `category_slug_conflict: slug "${slug}" sudah ada di parent lain. ` +
-      `Perbaiki skema: unik per-level (root: slug unik saat parent_id IS NULL; child: (parent_id, slug) unik).`
-    );
+  // concurrent insert: reselect
+  if (error && error.code === "23505") {
+    const again = await getCategoryBySlugAndParent(slug, parentId);
+    if (again) return again;
   }
   if (error) throw error;
   return data;
@@ -175,6 +218,7 @@ async function resolveCategories(body, { safe = false } = {}) {
     if (legacyChild) await pushOrMark(legacyChild, p || { label: legacyParent });
   }
 
+  // dedupe
   const seen = {};
   out.categoryRows = out.categoryRows.filter((r) => (r && !seen[r.id] ? (seen[r.id] = true) : false));
 
@@ -199,7 +243,13 @@ function validatePayload(body) {
 }
 
 // ------- Notion: auto-detect props & build -------
+let __propsCache = { at: 0, resolved: null, props: null };
 async function detectNotionProps() {
+  // cache 5 menit untuk kurangi rate-limit
+  if (__propsCache.at && (Date.now() - __propsCache.at) < 5 * 60_000 && __propsCache.resolved) {
+    return { props: __propsCache.props, resolved: __propsCache.resolved };
+  }
+  if (!NOTION_DB_MASTER) throw new Error("notion_db_missing");
   const db = await notion.databases.retrieve({ database_id: NOTION_DB_MASTER });
   const props = db.properties || {};
 
@@ -221,8 +271,15 @@ async function detectNotionProps() {
   const statusCandidates = [NOTION_PROP_STATUS, "Status"];
   const catsAggCandidates = [NOTION_PROP_CATEGORIES, "Categories"];
 
+  // detect optional "Choice Image X URL"
+  const choiceImgProps = {};
+  ["A","B","C","D"].forEach(L => {
+    const key = `Choice Image ${L} URL`;
+    if (props[key]?.type === "url") choiceImgProps[L] = key;
+  });
+
   const resolved = {
-    title: titleProp, // harus ada
+    title: titleProp, // must
     parent: findByName(parentCandidates),
     child: findByName(childCandidates),
     level: findByName(levelCandidates),
@@ -233,18 +290,19 @@ async function detectNotionProps() {
     source: findByName(sourceCandidates),
     status: findByName(statusCandidates),
     catsAgg: findByName(catsAggCandidates),
-    // choices & explanations: asumsi memakai pola standar
     choices: LETTERS.map((L) => `Choice ${L}`).filter((n) => props[n]),
     explanations: LETTERS.map((L) => `Explanation ${L}`).filter((n) => props[n]),
     isCorrect: LETTERS.map((L) => `isCorrect ${L}`).filter((n) => props[n]),
+    choiceImageUrl: choiceImgProps, // map {A:"Choice Image A URL",...}
   };
 
+  __propsCache = { at: Date.now(), resolved, props };
   return { props, resolved };
 }
 
 function buildNotionProperties(body, resolved, warn) {
-  const tagsArr = arrCsvToArray(body.tagsCsv || body.tags || []).map((name) => ({ name }));
-  const aircraftArr = arrCsvToArray(body.aircraftCsv || body.aircraft || []).map((name) => ({ name }));
+  const tagsArr = arrCsvToArray(pick(body.tagsCsv, body.tags)).map((name) => ({ name }));
+  const aircraftArr = arrCsvToArray(pick(body.aircraftCsv, body.aircraft)).map((name) => ({ name }));
   const code = (body.code && String(body.code)) || `Q-${Date.now()}`;
 
   const p = {};
@@ -268,8 +326,10 @@ function buildNotionProperties(body, resolved, warn) {
   if (resolved.source && body.source != null) {
     p[resolved.source] = { rich_text: [{ text: { content: String(body.source || "") } }] };
   }
-  if (resolved.qImage && body.questionImageUrl) {
-    p[resolved.qImage] = { url: String(body.questionImageUrl) };
+
+  const qImgUrl = pick(body.questionImageUrl, body.question_image_url);
+  if (resolved.qImage && isSafeHttpUrl(qImgUrl)) {
+    p[resolved.qImage] = { url: String(qImgUrl) };
   }
 
   // Category parent/child (opsional; hanya jika property ada)
@@ -286,6 +346,7 @@ function buildNotionProperties(body, resolved, warn) {
   }
 
   // Choices/explanations/isCorrect -> hanya set yang propertinya ada
+  const choiceImageUrls = normalizeChoiceImageUrls(body);
   LETTERS.forEach((L, i) => {
     const cName = `Choice ${L}`;
     const eName = `Explanation ${L}`;
@@ -303,10 +364,10 @@ function buildNotionProperties(body, resolved, warn) {
     if (resolved.isCorrect.includes(kName)) {
       p[kName] = { checkbox: !!isC };
     }
-    const url = body.choiceImageUrls?.[i];
-    const imgProp = `Choice Image ${L} URL`;
-    if (url && imgProp) {
-      p[imgProp] = { url: String(url) }; // hanya error jika property tidak ada; kalau itu kejadian, Notion drop field silently
+    const url = choiceImageUrls[i];
+    const imgProp = resolved.choiceImageUrl?.[L];
+    if (imgProp && isSafeHttpUrl(url)) {
+      p[imgProp] = { url: String(url) };
     }
   });
 
@@ -326,21 +387,22 @@ async function upsertMirrorSupabase(body, notionPageId, categoryIds) {
     C: body.choices?.[2] || "",
     D: body.choices?.[3] || "",
   };
-  const choiceImages = (body.choiceImageUrls || []).map((x) => (x && String(x).trim()) || null);
+  const choiceImages = normalizeChoiceImageUrls(body);
   const answerKey = LETTER_OF[Number(body.correctIndex) || 0] || "A";
-  const tags = arrCsvToArray(body.tagsCsv || body.tags || []).map((t) => t.toLowerCase());
-  const aircraftCSV = arrCsvToArray(body.aircraftCsv || body.aircraft || []).join(",");
+  const tags = arrCsvToArray(pick(body.tagsCsv, body.tags)).map((t) => t.toLowerCase());
+  const aircraftCSV = arrCsvToArray(pick(body.aircraftCsv, body.aircraft)).join(",");
 
+  const questionImageUrl = pick(body.questionImageUrl, body.question_image_url);
   const payload = {
     legacy_id: notionPageId,
     question_text: String(body.question || "").trim(),
-    question_image_url: body.questionImageUrl || null,
+    question_image_url: questionImageUrl && isSafeHttpUrl(questionImageUrl) ? questionImageUrl : null,
     choices: choicesObj,
     choice_images: choiceImages,
     answer_key: answerKey,
     explanation: body.explanations?.[Number(body.correctIndex) || 0] || null,
     explanations: Array.isArray(body.explanations) && body.explanations.length === 4 ? body.explanations : null,
-    difficulty: normDifficulty(body.difficulty || body.level),
+    difficulty: normDifficulty(pick(body.difficulty, body.level)),
     source: body.source || null,
     aircraft: aircraftCSV || null,
     status: ["draft", "published", "archived"].includes(String(body.status)) ? body.status : "draft",
@@ -363,6 +425,10 @@ exports.handler = async (event) => {
   const startedAt = Date.now();
   let actor = null;
   try {
+    // rate-limit
+    const ip = event.headers?.["cf-connecting-ip"] || event.headers?.["x-forwarded-for"] || "0.0.0.0";
+    ratelimit(String(ip));
+
     if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
     if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
 
@@ -373,7 +439,18 @@ exports.handler = async (event) => {
     const isDry = String(qs.dry || "").toLowerCase() === "1";
     const skipMirror = isDry || String(qs.mirror || "") === "0";
 
-    const body = JSON.parse(event.body || "{}");
+    const raw = JSON.parse(event.body || "{}");
+    // alias harmonisasi
+    const body = {
+      ...raw,
+      legacyId: pick(raw.legacyId, raw.legacy_id, null),
+      questionImageUrl: pick(raw.questionImageUrl, raw.question_image_url),
+      choiceImageUrls: pick(raw.choiceImageUrls, raw.choice_images, raw.choiceImages),
+      difficulty: pick(raw.difficulty, raw.level),
+      tagsCsv: pick(raw.tagsCsv, raw.tags),
+      aircraftCsv: pick(raw.aircraftCsv, raw.aircraft),
+    };
+
     const val = validatePayload(body);
     if (!val.ok) {
       await auditLog({ actor, action: "submit-question", status: "validation_failed", meta: { issues: val.issues } });
@@ -405,7 +482,6 @@ exports.handler = async (event) => {
     const { resolved } = await detectNotionProps();
     const notionWarnings = [];
 
-    // sisipkan label parent/child ke body sementara agar build bisa isi jika property ada
     const bodyForNotion = {
       ...body,
       parentCategoryLabel: mainParentLabel || body.parentCategoryLabel,
@@ -413,16 +489,16 @@ exports.handler = async (event) => {
     };
     const properties = buildNotionProperties(bodyForNotion, resolved, notionWarnings);
 
-    // Jika title property tidak ketemu, stop (Notion mewajibkan)
     if (!resolved.title) {
       return json(400, { error: "notion_title_property_missing", warnings: [...warnings, ...notionWarnings] });
     }
 
     // ------- Create/Update Notion (skip saat dry) -------
     let notionPageId;
-    if (body.legacyId) {
-      notionPageId = body.legacyId;
-      if (!isDry) await notion.pages.update({ page_id: body.legacyId, properties });
+    const legacyId = body.legacyId;
+    if (legacyId) {
+      notionPageId = legacyId;
+      if (!isDry) await notion.pages.update({ page_id: legacyId, properties });
     } else {
       if (isDry) notionPageId = "dry-run-new-id";
       else {
@@ -458,6 +534,7 @@ exports.handler = async (event) => {
   } catch (e) {
     console.error("submit-question error:", e);
     await auditLog({ actor, action: "submit-question", status: "error", meta: { message: e.message, stack: e.stack, duration_ms: Date.now() - startedAt } });
-    return json(400, { error: e.message || String(e) });
+    const statusCode = e.statusCode || 400;
+    return json(statusCode, { error: e.message || String(e) });
   }
 };

@@ -1,13 +1,12 @@
 // src/App.jsx
 import React, { Suspense, lazy, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+
 import MainLayout from "./layouts/MainLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import AdminRoute from "@/routes/AdminRoute";
-import BillingPage from "@/pages/Billing";
-import ResetPasswordPage from "@/pages/ResetPasswordPage";
-import { Toaster } from "react-hot-toast";
 
 /* ---------------- Public & Static ---------------- */
 const DisclaimerPage   = lazy(() => import("./pages/DisclaimerPage"));
@@ -18,9 +17,10 @@ const PrivacyPage      = lazy(() => import("./pages/legal/Privacy"));
 const ContactPage      = lazy(() => import("./pages/legal/Contact"));
 
 /* ---------------- Auth ---------------- */
-const LoginPage    = lazy(() => import("./pages/LoginPage"));
-const SignupPage   = lazy(() => import("./pages/SignupPage"));
-const Unauthorized = lazy(() => import("./pages/Unauthorized"));
+const LoginPage          = lazy(() => import("./pages/LoginPage"));
+const SignupPage         = lazy(() => import("./pages/SignupPage"));
+const Unauthorized       = lazy(() => import("./pages/Unauthorized"));
+const ResetPasswordPage  = lazy(() => import("./pages/ResetPasswordPage"));
 
 /* ---------------- User ---------------- */
 const DashboardPage    = lazy(() => import("./pages/DashboardPage"));
@@ -28,16 +28,17 @@ const SettingsPage     = lazy(() => import("./pages/SettingsPage"));
 const PrivacyToolsPage = lazy(() => import("./pages/PrivacyToolsPage"));
 
 /* ---------------- Quiz & Exam ---------------- */
-const QuizSelector     = lazy(() => import("./pages/QuizSelector"));
-const SubjectSelector  = lazy(() => import("./pages/SubjectSelector"));
-const QuizPage         = lazy(() => import("./pages/QuizPage"));
-const QuizEditorMaster = lazy(() => import("./pages/QuizEditorMaster"));
-const ExamPage         = lazy(() => import("./modules/exam/ExamPage"));
+const QuizSelector    = lazy(() => import("./pages/QuizSelector"));
+const SubjectSelector = lazy(() => import("./pages/SubjectSelector"));
+const QuizPage        = lazy(() => import("./pages/QuizPage"));
+const ResultPage      = lazy(() => import("./pages/ResultPage"));
+const ExamPage        = lazy(() => import("./modules/exam/ExamPage"));
+const QuizShell       = lazy(() => import("./layouts/QuizShell")); // ✅ new: sidebar shell for quiz
 
 /* ---------------- Tools ---------------- */
 const DelayPage          = lazy(() => import("./pages/Delay"));
-const TimeTools          = lazy(() => import("@/pages/TimeTools"));
-const FlightComputerPage = lazy(() => import("@/modules/flight-computer"));
+const TimeTools          = lazy(() => import("./pages/TimeTools"));
+const FlightComputerPage = lazy(() => import("./modules/flight-computer"));
 
 /* ---------------- OCR & Logbook ---------------- */
 const OcrPage      = lazy(() => import("./pages/OcrPage"));
@@ -46,23 +47,28 @@ const RoiTester    = lazy(() => import("./pages/RoiTester"));
 const LogbookPrint = lazy(() => import("./pages/LogbookPrint"));
 
 /* ---------------- Admin ---------------- */
-const AdminDashboard      = lazy(() => import("./pages/AdminDashboard"));
-const AdminPromos         = lazy(() => import("./pages/AdminPromos"));
-const AdminUsers          = lazy(() => import("./pages/admin/AdminUsers"));
-const AdminOrders         = lazy(() => import("./pages/admin/AdminOrders"));
-const AdminNewsletter     = lazy(() => import("./pages/admin/AdminNewsletter"));
-const AdminCategories     = lazy(() => import("./pages/admin/CategoryManager"));
-const AdminQuestionEditor = lazy(() => import("./pages/admin/QuestionEditor")); // list
-const AdminQuestionForm   = lazy(() => import("@/components/admin/QuestionFormFull")); // form create/edit
-const AdminNewsletterDetail = lazy(() => import("./pages/admin/AdminNewsletterDetail")); // <--- ADD THIS
+const AdminDashboard        = lazy(() => import("./pages/AdminDashboard"));
+const AdminPromos           = lazy(() => import("./pages/AdminPromos"));
+const AdminUsers            = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminOrders           = lazy(() => import("./pages/admin/AdminOrders"));
+const AdminNewsletter       = lazy(() => import("./pages/admin/AdminNewsletter"));
+const AdminCategories       = lazy(() => import("./pages/admin/CategoryManager"));
+const AdminNewsletterDetail = lazy(() => import("./pages/admin/AdminNewsletterDetail"));
 
-/* ---------------- Payments ---------------- */
-const PaymentResult = lazy(() => import("./pages/PaymentResult"));
+// 🔑 Master–Detail hub
+const QuestionsHub          = lazy(() => import("./pages/admin/QuestionsHub"));
 
-/* ---------------- Voucher ---------------- */
+// Legacy editor/list (keep for deep link/backward compatibility)
+const AdminQuestionEditorPage = lazy(() => import("./pages/admin/QuestionEditorPage"));
+const QuestionsList           = lazy(() => import("./pages/admin/QuestionsList"));
+const EditQuestionPage        = lazy(() => import("./pages/admin/EditQuestionPage"));
+
+/* ---------------- Payments & Voucher ---------------- */
+const BillingPage       = lazy(() => import("./pages/Billing"));
+const PaymentResult     = lazy(() => import("./pages/PaymentResult"));
 const RedeemVoucherPage = lazy(() => import("./pages/RedeemVoucherPage"));
 
-/* Debug helper: log route changes (optional) */
+/* ---------------- Debug Helper ---------------- */
 function RouteDebugger() {
   const location = useLocation();
   useEffect(() => {
@@ -77,58 +83,36 @@ export default function App() {
       <Toaster position="top-center" reverseOrder={false} />
       <RouteDebugger />
 
-      <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>
+      <Suspense fallback={<div className="p-6 text-center text-primary">Loading…</div>}>
         <Routes>
           {/* Landing */}
           <Route path="/" element={<DisclaimerPage />} />
 
-          {/* Quiz (public) */}
-          <Route
-            path="/quiz"
-            element={
-              <MainLayout>
-                <QuizSelector />
-              </MainLayout>
-            }
-          />
-          <Route
-            path="/quiz/:aircraft"
-            element={
-              <MainLayout>
-                <SubjectSelector />
-              </MainLayout>
-            }
-          />
-          <Route
-            path="/quiz/:aircraft/:subject"
-            element={
-              <MainLayout>
-                <QuizPage />
-              </MainLayout>
-            }
-          />
+          {/* Quiz (public) — now wrapped with QuizShell (sidebar + content) */}
+          <Route path="/quiz" element={<QuizShell />}>
+            <Route index element={<QuizSelector />} />
+            <Route path=":aircraft" element={<SubjectSelector />} />
+            <Route path=":aircraft/:subject" element={<QuizPage />} />
+            <Route path="result/:attemptId" element={<ResultPage />} />
+          </Route>
 
-          {/* Voucher (login required) */}
+          {/* Exam (protected) */}
           <Route
-            path="/redeem"
+            path="/exam/:aircraft/:subject"
             element={
               <ProtectedRoute>
-                <MainLayout>
-                  <RedeemVoucherPage />
-                </MainLayout>
+                <MainLayout><ExamPage /></MainLayout>
               </ProtectedRoute>
             }
           />
 
-          {/* Quiz Editor (legacy admin tool) */}
+          {/* Voucher (protected) */}
           <Route
-            path="/quiz-editor"
+            path="/redeem"
             element={
-              <AdminRoute>
-                <MainLayout>
-                  <QuizEditorMaster />
-                </MainLayout>
-              </AdminRoute>
+              <ProtectedRoute>
+                <MainLayout><RedeemVoucherPage /></MainLayout>
+              </ProtectedRoute>
             }
           />
 
@@ -151,38 +135,27 @@ export default function App() {
           <Route path="/print"      element={<LogbookPrint />} />
 
           {/* Auth */}
-          <Route path="/login"    element={<LoginPage />} />
-          <Route path="/signup"   element={<SignupPage />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
-          <Route
-            path="/reset-password"
-            element={
-              <MainLayout>
-                <ResetPasswordPage />
-              </MainLayout>
-            }
-          />
+          <Route path="/login"           element={<LoginPage />} />
+          <Route path="/signup"          element={<SignupPage />} />
+          <Route path="/unauthorized"    element={<Unauthorized />} />
+          <Route path="/reset-password"  element={<MainLayout><ResetPasswordPage /></MainLayout>} />
 
-          {/* Dashboard (login optional) */}
+          {/* Dashboard (protected, guest allowed) */}
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute allowGuest>
-                <MainLayout>
-                  <DashboardPage />
-                </MainLayout>
+                <MainLayout><DashboardPage /></MainLayout>
               </ProtectedRoute>
             }
           />
 
-          {/* Settings (login required) */}
+          {/* Settings (protected) */}
           <Route
             path="/settings"
             element={
               <ProtectedRoute>
-                <MainLayout>
-                  <SettingsPage />
-                </MainLayout>
+                <MainLayout><SettingsPage /></MainLayout>
               </ProtectedRoute>
             }
           />
@@ -190,9 +163,7 @@ export default function App() {
             path="/privacy-tools"
             element={
               <ProtectedRoute>
-                <MainLayout>
-                  <PrivacyToolsPage />
-                </MainLayout>
+                <MainLayout><PrivacyToolsPage /></MainLayout>
               </ProtectedRoute>
             }
           />
@@ -211,34 +182,21 @@ export default function App() {
             <Route path="users"       element={<AdminUsers />} />
             <Route path="orders"      element={<AdminOrders />} />
             <Route path="newsletter"  element={<AdminNewsletter />} />
+            <Route path="newsletter/:campaignId" element={<AdminNewsletterDetail />} />
             <Route path="categories"  element={<AdminCategories />} />
-            <Route path="newsletter/:campaignId" element={<AdminNewsletterDetail />} /> {/* <--- ADD THIS */}
 
-            {/* Questions */}
-            <Route path="questions"       element={<AdminQuestionEditor />} />
-            <Route path="questions/new"   element={<AdminQuestionForm />} />
-            <Route path="questions/:id"   element={<AdminQuestionForm />} />
+            {/* ✅ Master–Detail Questions Hub */}
+            <Route path="questions" element={<QuestionsHub />} />
+
+            {/* Legacy routes (keep working) */}
+            <Route path="questions/new"    element={<AdminQuestionEditorPage />} />
+            <Route path="questions/editor" element={<AdminQuestionEditorPage />} />
+            <Route path="questions/list"   element={<QuestionsList />} />
+            <Route path="questions/:id"    element={<EditQuestionPage />} />
           </Route>
 
           {/* Payments */}
-          <Route
-            path="/payment-result"
-            element={
-              <MainLayout>
-                <PaymentResult />
-              </MainLayout>
-            }
-          />
-
-          {/* Exam */}
-          <Route
-            path="/exam/:aircraft/:subject"
-            element={
-              <MainLayout>
-                <ExamPage />
-              </MainLayout>
-            }
-          />
+          <Route path="/payment-result" element={<MainLayout><PaymentResult /></MainLayout>} />
 
           {/* Billing */}
           <Route path="/billing" element={<BillingPage />} />

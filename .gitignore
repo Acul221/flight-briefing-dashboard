@@ -11,11 +11,30 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
+.cache
+.parcel-cache
+.turbo
+*.tgz
+*.tar.gz
+
+# ───── Environment files ─────
+# ignore all env files, but keep example for developers
+.env
+.env.*
+!.env.example
+
+# if you want to keep local-only file name explicit, you can also create:
+# .env.local (it will still be ignored by the rules above)
+
+# ───── Netlify ─────
+.netlify
+.netlify/state.json
+# keep netlify.toml in repo
 
 # ───── Editor Directories & Files ─────
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -24,34 +43,19 @@ dist-ssr
 *.sln
 *.sw?
 
-# ───── Netlify ─────
-.netlify/state.json
-.netlify
-.env
-.env.local
-
 # ───── Testing & Coverage ─────
 coverage/
+.nyc_output/
 __mocks__/
 __snapshots__/
-*.test.js
-*.test.jsx
-*.spec.js
-*.spec.jsx
-jest.setup.js
-vitest.config.js
-vitest.setup.js
-vitest.setup.jsx
-src/components/__tests__/
-src/pages/__tests__/
-src/tests/
+
+# (Optional) If you actually commit tests, remove the lines below.
+# src/components/__tests__/
+# src/pages/__tests__/
+# src/tests/
 
 # ───── System Junk Files (Windows/Unix) ─────
 nul
 Thumbs.db
 ehthumbs.db
 desktop.ini
-
-# ───── Others ─────
-*.tgz
-*.tar.gz

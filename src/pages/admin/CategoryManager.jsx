@@ -2,11 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   useCategoriesTree,
-  useCategoriesFlat,
   createCategory,
   updateCategory,
   deleteCategory,
-} from "@/hooks/useCategories";
+} from "@/hooks/useCategoriesTree";
 import { Plus, RefreshCcw, Trash2, Pencil, Check, X } from "lucide-react";
 
 /** Simple tree node */
@@ -40,7 +39,7 @@ function Node({ node, onSelect, selectedId }) {
 
 export default function CategoryManager() {
   const { items: tree, loading, reload } = useCategoriesTree(true);
-  const { items: flat } = useCategoriesFlat(false);
+  const { items: flat } = useCategoriesTree(false);
 
   const [selected, setSelected] = useState(null);
   const [mode, setMode] = useState("view"); // "view" | "create" | "edit"
