@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
  *
  * Env:
  *  - VITE_FUNCTIONS_BASE (opsional): e.g. "http://localhost:8888"
+ *  - VITE_ADMIN_API_SECRET (opsional, hanya untuk helper admin di bawah)
  */
 export function useCategoriesTree({
   parentSlug = null,
@@ -115,4 +116,67 @@ export function useCategoriesTree({
   );
 
   return { items, loading, error, lastUpdated, refresh, findBySlug };
+}
+
+/* ======================================================================
+ * Admin helpers (dipakai oleh panel admin). Non-breaking untuk konsumen lama.
+ * Server-side requirement (sesuai function categories.js kamu):
+ *  - GET     /.netlify/functions/categories
+ *  - POST    /.netlify/functions/categories          { label, parent_slug? }
+ *  - DELETE  /.netlify/functions/categories?id=<uuid>
+ *  - (PUT/PATCH belum ada) → updateCategory() di bawah akan melempar error jelas.
+ * ====================================================================== */
+
+const FUNCTIONS_BASE = (import.meta.env.VITE_FUNCTIONS_BASE || "/.netlify/functions").replace(/\/+$/, "");
+const ADMIN_SECRET   = import.meta.env.VITE_ADMIN_API_SECRET;
+
+/** Create category / subcategory */
+export async function createCategory({ label, parent_slug = null }) {
+  if (!ADMIN_SECRET) throw new Error("Missing VITE_ADMIN_API_SECRET");
+  const res = await fetch(`${FUNCTIONS_BASE}/categories`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-admin-secret": ADMIN_SECRET,
+      accept: "application/json",
+    },
+    body: JSON.stringify({ label, parent_slug }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Create category failed (${res.status}) ${txt}`);
+  }
+  return res.json();
+}
+
+/** Delete category by id (akan 409 bila kategori masih dipakai) */
+export async function deleteCategory(id) {
+  if (!ADMIN_SECRET) throw new Error("Missing VITE_ADMIN_API_SECRET");
+  const u = new URL(`${FUNCTIONS_BASE}/categories`, window.location.origin);
+  u.searchParams.set("id", id);
+  const res = await fetch(u.toString().replace(window.location.origin, ""), {
+    method: "DELETE",
+    headers: {
+      "x-admin-secret": ADMIN_SECRET,
+      accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Delete category failed (${res.status}) ${txt}`);
+  }
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Update category (rename / relink) — placeholder.
+ * Jika kamu sudah menambahkan endpoint PUT/PATCH di netlify/functions/categories.js,
+ * ganti implementasi di bawah agar memanggil endpoint tersebut.
+ */
+export async function updateCategory(/* payload */) {
+  throw new Error("Update category not implemented on server. Please implement PUT/PATCH /categories.");
 }
