@@ -15,9 +15,8 @@ import Unauthorized from "@/pages/Unauthorized";
 import Dashboard from "@/pages/Dashboard";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 
-/* Quiz */
-import SubjectSelector from "@/pages/SubjectSelector";
-import QuizPage from "@/pages/QuizPage";
+/* Quiz (legacy routes not used) */
+// Deprecated: use src/App.jsx routes with QuizShell
 
 /* Admin guards */
 import AdminRoute from "@/routes/AdminRoute";
@@ -61,23 +60,7 @@ export default function AppRoutes() {
       />
       <Route path="/unauthorized" element={<Unauthorized />} />
 
-      {/* Quiz (public — gating di dalam page) */}
-      <Route
-        path="/quiz/:aircraft"
-        element={
-          <MainLayout>
-            <SubjectSelector />
-          </MainLayout>
-        }
-      />
-      <Route
-        path="/quiz/:aircraft/:subject"
-        element={
-          <MainLayout>
-            <QuizPage />
-          </MainLayout>
-        }
-      />
+      {/* Quiz routes are defined in src/App.jsx with QuizShell */}
 
       {/* Dashboard (login optional) */}
       <Route

@@ -32,25 +32,46 @@ export default function useQuizSession({ aircraft, subject }) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/.netlify/functions/fetch-notion-questions?aircraft=${aircraft}&subject=${subject}`,
-          { signal: controller.signal }
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const shuffled = subject === "all" ? [...data].sort(() => Math.random() - 0.5) : data;
+        const base = (import.meta.env?.VITE_FUNCTIONS_BASE || "/.netlify/functions").replace(/\/+$/, "");
+        const u = new URL(`${base}/quiz-pull`, window.location.origin);
+        if (subject) u.searchParams.set("category_slug", subject);
+        u.searchParams.set("include_descendants", "1");
+        if (aircraft) u.searchParams.set("aircraft", aircraft);
+        u.searchParams.set("strict_aircraft", "0");
+        // default limit; biarkan server shuffle/seed bila perlu
+        u.searchParams.set("limit", "20");
 
-        const fingerprint = JSON.stringify(shuffled.map((q) => q.id));
+        const res = await fetch(u.toString().replace(window.location.origin, ""), { signal: controller.signal, headers: { accept: "application/json" } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const items = Array.isArray(json?.items) ? json.items : [];
+
+        // Map ke shape UI (QuestionCard kompatibel)
+        const mapped = items.map((q) => ({
+          id: q.id,
+          legacy_id: q.legacy_id || null,
+          question: q.question || "",
+          questionImage: q.image || null,
+          choices: Array.isArray(q.choices) ? q.choices : [],
+          choiceImages: Array.isArray(q.choiceImages) ? q.choiceImages : [null, null, null, null],
+          explanations: Array.isArray(q.explanations) ? q.explanations : ["", "", "", ""],
+          correctIndex: Number.isInteger(q.correctIndex) ? q.correctIndex : 0,
+          tags: Array.isArray(q.tags) ? q.tags : [],
+          difficulty: q.difficulty || null,
+          source: q.source || null,
+        }));
+
+        const fingerprint = JSON.stringify(mapped.map((q) => q.id));
         const saved = safeJSON(safeGet(storageKey), {});
         const sameSet = saved?.fingerprint === fingerprint;
 
         if (!mounted) return;
 
-        setQuestions(shuffled);
+        setQuestions(mapped);
 
         // clamp index aman dua arah
         const restoredRaw = sameSet ? (saved.currentIndex ?? 0) : 0;
-        const maxIdx = Math.max(shuffled.length - 1, 0);
+        const maxIdx = Math.max(mapped.length - 1, 0);
         const restoredSafe = Number.isFinite(restoredRaw) ? restoredRaw : 0;
         const clampedIdx = clamp(restoredSafe, 0, maxIdx);
         setCurrentIndex(clampedIdx);

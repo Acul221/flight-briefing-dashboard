@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
+import PropTypes from 'prop-types';
 
-function Breadcrumb({ items }) {
+function Breadcrumb({ items = [] }) {
   return (
     <nav className="text-sm text-gray-500 dark:text-gray-300 mb-4" aria-label="Breadcrumb">
       <ol className="list-none p-0 inline-flex">
@@ -25,3 +26,12 @@ function Breadcrumb({ items }) {
 }
 
 export default Breadcrumb;
+
+Breadcrumb.propTypes = {
+  items: PropTypes.arrayOf(
+    PropTypes.shape({
+      label: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+      to: PropTypes.string,
+    })
+  ),
+};

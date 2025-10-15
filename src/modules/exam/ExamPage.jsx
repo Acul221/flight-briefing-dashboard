@@ -162,7 +162,14 @@ export default function ExamPage() {
   const q = questions[viewIndex];
 
   // score untuk review (full, karena exam = full set)
-  const correctCount = questions.reduce((acc, qq, i) => acc + (qq?.choices?.[answers[i]]?.isCorrect ? 1 : 0), 0);
+  const correctCount = questions.reduce((acc, qq, i) => {
+    const sel = answers[i];
+    if (!Number.isInteger(sel)) return acc;
+    const cidx = Number.isInteger(qq?.correctIndex)
+      ? qq.correctIndex
+      : (qq?.choices?.[sel]?.isCorrect ? sel : null);
+    return acc + (cidx === sel ? 1 : 0);
+  }, 0);
 
   return (
     <div className="max-w-3xl mx-auto p-4 text-gray-900 dark:text-white">

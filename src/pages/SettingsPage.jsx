@@ -9,6 +9,7 @@ import AdminPromos from "@/pages/admin/AdminPromos";
 import { useSession } from "@/hooks/useSession";
 import { useProfile } from "@/hooks/useProfile";
 import { useSubscription } from "@/hooks/useSubscription";
+import { formatDate, formatDateTime } from "@/utils/date";
 
 // Admin only (lazy)
 const AdminRACSettings = lazy(() => import("@/pages/admin/AdminRACSettings.jsx"));
@@ -94,7 +95,7 @@ export default function SettingsPage() {
 
   const planText = isPro ? (current?.plan || "Pro") : "Free";
   const expires = current?.current_period_end
-    ? new Date(current.current_period_end).toLocaleDateString()
+    ? formatDate(current.current_period_end)
     : null;
 
   if (isLoading) return <div className="p-6">Loading settings…</div>;
@@ -339,7 +340,7 @@ export default function SettingsPage() {
               )}
               {orders.map((o) => (
                 <tr key={o.order_id} className="border-t">
-                  <td className="py-2 pr-4">{new Date(o.created_at).toLocaleString()}</td>
+                  <td className="py-2 pr-4">{formatDateTime(o.created_at)}</td>
                   <td className="py-2 pr-4">{o.order_id}</td>
                   <td className="py-2 pr-4">{o.plan || "-"}</td>
                   <td className="py-2 pr-4">Rp {Number(o.amount || 0).toLocaleString("id-ID")}</td>
@@ -391,7 +392,7 @@ export default function SettingsPage() {
                       <td className="py-2 pr-4">{log.user_id}</td>
                       <td className="py-2 pr-4">{log.status}</td>
                       <td className="py-2 pr-4">
-                        {log.sent_at ? new Date(log.sent_at).toLocaleString() : "-"}
+                        {log.sent_at ? formatDateTime(log.sent_at) : "-"}
                       </td>
                       <td className="py-2 pr-4 text-red-600 text-xs">{log.error || "-"}</td>
                     </tr>

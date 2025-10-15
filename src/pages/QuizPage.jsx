@@ -82,7 +82,7 @@ function Navigator({ total, currentIndex, answers, flags, onJump }) {
 }
 
 export default function QuizPage() {
-  const { aircraft, subject } = useParams();
+  const { aircraft, subject, categorySlug, subjectSlug } = useParams();
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const mode = (search.get("mode") || "practice").toLowerCase() === "exam" ? "exam" : "practice";
@@ -119,10 +119,13 @@ export default function QuizPage() {
       setShowExplain(false);
       try {
         const u = new URL(`${FUNCTIONS_BASE}/quiz-pull`, window.location.origin);
-        if (subject) u.searchParams.set("category_slug", subject);
+        const parent = categorySlug || aircraft || null;
+        const child  = subjectSlug || subject || null;
+        if (child) u.searchParams.set("category_slug", child);
+        if (parent) u.searchParams.set("parent_slug", parent);
         u.searchParams.set("include_descendants", "1");
         u.searchParams.set("limit", "20");
-        if (aircraft) u.searchParams.set("aircraft", aircraft);
+        if (parent) u.searchParams.set("aircraft", parent);
         u.searchParams.set("strict_aircraft", "0");
 
         const res = await fetch(u.toString().replace(window.location.origin, ""), {
@@ -222,9 +225,9 @@ export default function QuizPage() {
     }
 
     const body = {
-      aircraft: aircraft || null,
-      category_root_slug: aircraft || null,
-      category_slug: subject || null,
+      aircraft: (categorySlug || aircraft) || null,
+      category_root_slug: (categorySlug || aircraft) || null,
+      category_slug: (subjectSlug || subject) || null,
       include_descendants: true,
       mode, // practice | exam
       duration_sec: durationSec,

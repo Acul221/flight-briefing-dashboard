@@ -1,18 +1,23 @@
 // src/pages/ResultPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/lib/apiClient";
+import { formatDateTime } from "@/utils/date";
 import clsx from "clsx";
 
-const idxToLetter = (i) => ["A", "B", "C", "D"][i] ?? "-";
+const FUNCTIONS_BASE = (import.meta.env.VITE_FUNCTIONS_BASE || "/.netlify/functions").replace(/\/+$/, "");
+
+/** --- Helpers (kepraktisan: inline supaya mudah dipakai langsung) --- */
+const idxToLetter = (i) => ["A", "B", "C", "D"][Number(i)] ?? "-";
 
 function normalizeQuestion(q) {
-  const answerIndex = ["A","B","C","D"].indexOf(String(q.answer_key || "A").toUpperCase());
-  const asArray4 = (arr, fill=null) => {
+  if (!q) return null;
+  const answerIndex = ["A", "B", "C", "D"].indexOf(String(q.answer_key || "A").toUpperCase());
+  const asArray4 = (arr, fill = null) => {
     const v = Array.isArray(arr) ? [...arr] : [];
     while (v.length < 4) v.push(fill);
-    return v.slice(0,4);
+    return v.slice(0, 4);
   };
+
   const choicesArr = Array.isArray(q.choices)
     ? q.choices
     : [q.choices?.A, q.choices?.B, q.choices?.C, q.choices?.D];
@@ -21,92 +26,80 @@ function normalizeQuestion(q) {
     id: q.id,
     question: q.question_text || "",
     questionImage: q.question_image_url || null,
-    choices: asArray4((choicesArr || []).map((c)=>c ?? ""), ""),
-    choiceImages: asArray4(q.choice_images, null),
-    explanations: asArray4(q.explanations, ""),
-    correctIndex: (answerIndex >= 0 && answerIndex <= 3) ? answerIndex : 0,
+    choices: asArray4((choicesArr || []).map((c) => (c == null ? "" : c)), ""),
+    choiceImages: asArray4(q.choice_images || [], null),
+    explanations: asArray4(q.explanations || [], ""),
+    correctIndex: answerIndex >= 0 && answerIndex <= 3 ? answerIndex : 0,
+    difficulty: q.difficulty || null,
+    tags: Array.isArray(q.tags) ? q.tags : [],
   };
 }
 
+function mmss(sec) {
+  const s = Math.max(0, parseInt(sec || 0, 10) || 0);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}
+
+/** --- Component --- */
 export default function ResultPage() {
   const { attemptId } = useParams();
 
   const [attempt, setAttempt] = useState(null);
   const [items, setItems] = useState([]);
-  const [questionsMap, setQuestionsMap] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-    async function run() {
+    let abort = new AbortController();
+
+    async function load() {
       setLoading(true);
       setErr("");
       try {
-        // Attempt
-        const { data: a, error: e1 } = await supabase
-          .from("quiz_attempts")
-          .select("*")
-          .eq("id", attemptId)
-          .single();
-        if (e1) throw e1;
-        if (cancelled) return;
-        setAttempt(a);
+        const u = new URL(`${FUNCTIONS_BASE}/quiz-attempt`, window.location.origin);
+        u.searchParams.set("id", attemptId);
+        u.searchParams.set("include_questions", "1");
 
-        // Items
-        const { data: it, error: e2 } = await supabase
-          .from("quiz_attempt_items")
-          .select("*")
-          .eq("attempt_id", attemptId)
-          .order("created_at", { ascending: true });
-        if (e2) throw e2;
-        if (cancelled) return;
-        setItems(it || []);
+        const res = await fetch(u.toString().replace(window.location.origin, ""), {
+          method: "GET",
+          signal: abort.signal,
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok) throw new Error(`quiz-attempt ${res.status}`);
+        const json = await res.json();
 
-        // Questions (optional, RLS dependent)
-        const ids = (it || []).map((x) => x.question_id);
-        if (ids.length) {
-          const { data: qs, error: e3 } = await supabase
-            .from("questions")
-            .select("id, question_text, question_image_url, choices, choice_images, explanations, answer_key")
-            .in("id", ids);
-          if (e3) {
-            setQuestionsMap(null);
-          } else {
-            const map = {};
-            (qs || []).forEach((q) => { map[q.id] = normalizeQuestion(q); });
-            setQuestionsMap(map);
-          }
-        } else {
-          setQuestionsMap({});
-        }
+        const normItems = (json.items || []).map((it) => ({
+          ...it,
+          question: normalizeQuestion(it.question),
+        }));
+
+        setAttempt(json.attempt || null);
+        setItems(normItems);
       } catch (e) {
-        console.error(e);
-        setErr(e?.message || "Failed to load result");
+        if (e.name !== "AbortError") setErr(e?.message || "Failed to load result");
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
     }
-    run();
-    return () => { cancelled = true; };
+
+    load();
+    return () => abort.abort();
   }, [attemptId]);
 
   const summary = useMemo(() => {
     if (!attempt) return null;
-    const pct = typeof attempt.score === "number"
-      ? attempt.score
-      : (attempt.correct_count / Math.max(1, attempt.question_count)) * 100;
-    const mmss = (sec) => {
-      const m = Math.floor((sec || 0) / 60);
-      const s = (sec || 0) % 60;
-      return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-    };
+    const pct =
+      typeof attempt.score === "number"
+        ? attempt.score
+        : (attempt.correct_count / Math.max(1, attempt.question_count)) * 100;
     return {
       total: attempt.question_count,
       correct: attempt.correct_count,
       scorePct: Math.round(pct * 100) / 100,
       duration: mmss(attempt.duration_sec),
-      submittedAt: attempt.submitted_at,
+      createdAt: attempt.created_at,
       aircraft: attempt.aircraft || "-",
       subject: attempt.category_slug || "-",
       mode: attempt.mode || "practice",
@@ -126,20 +119,24 @@ export default function ResultPage() {
       <div className="max-w-4xl mx-auto p-6">
         <div className="p-3 rounded bg-red-50 text-red-700 border border-red-200">{err}</div>
         <div className="mt-4">
-          <Link to="/" className="text-blue-600 hover:underline">Back to Home</Link>
+          <Link to="/quiz" className="text-blue-600 hover:underline">
+            Back to Quiz
+          </Link>
         </div>
       </div>
     );
   }
 
-  if (!attempt) {
+  if (!attempt || !summary) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="p-3 rounded bg-amber-50 text-amber-800 border border-amber-200">
           Attempt tidak ditemukan.
         </div>
         <div className="mt-4">
-          <Link to="/" className="text-blue-600 hover:underline">Back to Home</Link>
+          <Link to="/quiz" className="text-blue-600 hover:underline">
+            Back to Quiz
+          </Link>
         </div>
       </div>
     );
@@ -154,21 +151,21 @@ export default function ResultPage() {
             <div className="text-slate-500 text-sm">
               Aircraft: <span className="font-medium">{summary.aircraft}</span> &nbsp;•&nbsp;
               Subject: <span className="font-medium">{summary.subject}</span> &nbsp;•&nbsp;
-              Mode: <span className="font-medium">{summary.mode}</span>
+              Mode: <span className="font-medium capitalize">{summary.mode}</span>
             </div>
             <div className="text-slate-900 text-xl font-semibold">
               Score: {summary.correct}/{summary.total} ({summary.scorePct}%)
             </div>
             <div className="text-slate-500 text-sm">
               Duration: <span className="font-medium">{summary.duration}</span> &nbsp;•&nbsp;
-              Submitted: <span className="font-medium">{new Date(summary.submittedAt).toLocaleString()}</span>
+              Submitted:{" "}
+              <span className="font-medium">
+                {summary.createdAt ? formatDateTime(summary.createdAt) : "-"}
+              </span>
             </div>
           </div>
           <div className="text-right">
-            <Link
-              to="/quiz"
-              className="inline-block px-3 py-2 rounded bg-slate-800 text-white hover:bg-slate-900"
-            >
+            <Link to="/quiz" className="inline-block px-3 py-2 rounded bg-slate-800 text-white hover:bg-slate-900">
               Try Another Quiz
             </Link>
           </div>
@@ -178,22 +175,29 @@ export default function ResultPage() {
       {/* Review list */}
       <div className="space-y-4">
         {items.map((it, idx) => {
-          const q = questionsMap?.[it.question_id] || null;
+          const q = it.question;
           const isCorrect = it.is_correct ?? (it.answer_index === it.correct_index);
-          const userLetter = idxToLetter(it.answer_index);
-          const correctLetter = idxToLetter(it.correct_index);
+          const userLetter = Number.isInteger(it.answer_index) ? idxToLetter(it.answer_index) : "-";
+          const correctLetter = Number.isInteger(it.correct_index) ? idxToLetter(it.correct_index) : "-";
+
+          // safe choices fallback
+          const choices = (q?.choices && q.choices.length ? q.choices : Array(4).fill(""));
 
           return (
-            <div key={it.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div key={it.id || idx} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between">
                 <div className="text-slate-900 font-semibold">
-                  {idx + 1}. {q ? q.question : <span className="italic text-slate-500">Question text unavailable</span>}
+                  {idx + 1}.{" "}
+                  {q ? q.question : <span className="italic text-slate-500">Question text unavailable</span>}
                 </div>
-                <div className={clsx(
-                  "text-xs px-2 py-1 rounded",
-                  isCorrect ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-200"
-                )}>
+                <div
+                  className={clsx(
+                    "text-xs px-2 py-1 rounded",
+                    isCorrect
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-rose-50 text-rose-700 border border-rose-200"
+                  )}
+                >
                   {isCorrect ? "Correct" : "Incorrect"}
                 </div>
               </div>
@@ -205,7 +209,7 @@ export default function ResultPage() {
               ) : null}
 
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {(q?.choices || [0,1,2,3].map(()=>"" )).map((ch, i) => {
+                {choices.map((ch, i) => {
                   const active = i === it.answer_index;
                   const correct = i === it.correct_index;
                   return (
@@ -213,9 +217,11 @@ export default function ResultPage() {
                       key={i}
                       className={clsx(
                         "rounded border p-2 text-sm",
-                        correct ? "border-emerald-300 bg-emerald-50"
-                        : active ? "border-rose-300 bg-rose-50"
-                        : "border-slate-200 bg-white"
+                        correct
+                          ? "border-emerald-300 bg-emerald-50"
+                          : active
+                          ? "border-rose-300 bg-rose-50"
+                          : "border-slate-200 bg-white"
                       )}
                     >
                       <div className="font-medium mb-1">{idxToLetter(i)}.</div>
@@ -238,8 +244,8 @@ export default function ResultPage() {
               ) : null}
 
               <div className="mt-3 text-sm text-slate-600">
-                Your answer: <span className="font-semibold">{userLetter}</span> &nbsp;•&nbsp;
-                Correct: <span className="font-semibold">{correctLetter}</span>
+                Your answer: <span className="font-semibold">{userLetter}</span> &nbsp;•&nbsp; Correct:{" "}
+                <span className="font-semibold">{correctLetter}</span>
                 {Array.isArray(it.category_path) && it.category_path.length ? (
                   <>
                     &nbsp;•&nbsp; Category: <span className="font-medium">{it.category_path.join(" > ")}</span>

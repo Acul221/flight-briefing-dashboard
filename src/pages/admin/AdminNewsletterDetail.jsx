@@ -9,29 +9,38 @@ export default function AdminNewsletterDetail() {
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchCampaign();
-    fetchCampaignLogs();
-  }, [campaignId]);
-
-  const fetchCampaign = async () => {
+  async function fetchCampaign() {
     const { data, error } = await supabase
       .from("newsletter_overview")
       .select("*")
       .eq("campaign_id", campaignId)
       .single();
     if (!error) setCampaign(data);
-  };
+  }
 
-  const fetchCampaignLogs = async () => {
+  async function fetchCampaignLogs() {
     const { data, error } = await supabase
       .from("newsletter_logs")
       .select("id, user_id, status, error, sent_at, opened, clicked, unsubscribed, opened_at, clicked_at, unsubscribed_at")
       .eq("campaign_id", campaignId)
       .order("sent_at", { ascending: false });
     if (!error) setLogs(data || []);
-    setLoading(false);
-  };
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        await Promise.all([fetchCampaign(), fetchCampaignLogs()]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [campaignId]);
 
   const exportCSV = () => {
     if (!logs.length) return;
@@ -44,6 +53,8 @@ export default function AdminNewsletterDetail() {
     a.href = url; a.download = `newsletter_campaign_${campaignId}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (loading) return <div className="p-6">Loading newsletter campaign…</div>;
 
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(logs, null, 2)], { type: "application/json" });

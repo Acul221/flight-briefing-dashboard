@@ -9,7 +9,7 @@ const {
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE,
   NOTION_TOKEN,
-  NOTION_DB_MASTER,
+  NOTION_DB_QUESTION,
 
   // Optional overrides (boleh kosong; kita auto-detect)
   NOTION_PROP_TITLE,
@@ -31,6 +31,12 @@ const {
 
 // ---- Clients ----
 const notion = new Client({ auth: NOTION_TOKEN });
+// Startup notice: enforce v3 DB
+if (process.env.NODE_ENV !== "test") {
+  try {
+    console.log("[submit-question] Using Notion DB v3 via NOTION_DB_QUESTION");
+  } catch {}
+}
 const sba = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
@@ -249,8 +255,8 @@ async function detectNotionProps() {
   if (__propsCache.at && (Date.now() - __propsCache.at) < 5 * 60_000 && __propsCache.resolved) {
     return { props: __propsCache.props, resolved: __propsCache.resolved };
   }
-  if (!NOTION_DB_MASTER) throw new Error("notion_db_missing");
-  const db = await notion.databases.retrieve({ database_id: NOTION_DB_MASTER });
+  if (!NOTION_DB_QUESTION) throw new Error("notion_db_missing");
+  const db = await notion.databases.retrieve({ database_id: NOTION_DB_QUESTION });
   const props = db.properties || {};
 
   const findByType = (type) => Object.entries(props).find(([, p]) => p?.type === type)?.[0] || null;
@@ -274,8 +280,13 @@ async function detectNotionProps() {
   // detect optional "Choice Image X URL"
   const choiceImgProps = {};
   ["A","B","C","D"].forEach(L => {
-    const key = `Choice Image ${L} URL`;
-    if (props[key]?.type === "url") choiceImgProps[L] = key;
+    const keyUrl = `Choice Image ${L} URL`;
+    const keyFiles = `Choice ${L} Image`;
+    if (props[keyUrl]?.type === "url") {
+      choiceImgProps[L] = keyUrl;
+    } else if (props[keyFiles]?.type === "files") {
+      choiceImgProps[L] = keyFiles;
+    }
   });
 
   const resolved = {
@@ -300,7 +311,7 @@ async function detectNotionProps() {
   return { props, resolved };
 }
 
-function buildNotionProperties(body, resolved, warn) {
+function buildNotionProperties(body, resolved, warn, propsMeta = {}) {
   const tagsArr = arrCsvToArray(pick(body.tagsCsv, body.tags)).map((name) => ({ name }));
   const aircraftArr = arrCsvToArray(pick(body.aircraftCsv, body.aircraft)).map((name) => ({ name }));
   const code = (body.code && String(body.code)) || `Q-${Date.now()}`;
@@ -329,7 +340,13 @@ function buildNotionProperties(body, resolved, warn) {
 
   const qImgUrl = pick(body.questionImageUrl, body.question_image_url);
   if (resolved.qImage && isSafeHttpUrl(qImgUrl)) {
-    p[resolved.qImage] = { url: String(qImgUrl) };
+    const t = propsMeta?.[resolved.qImage]?.type;
+    if (t === "files") {
+      p[resolved.qImage] = { files: [{ name: "Question Image", external: { url: String(qImgUrl) } }] };
+    } else {
+      // default to URL type
+      p[resolved.qImage] = { url: String(qImgUrl) };
+    }
   }
 
   // Category parent/child (opsional; hanya jika property ada)
@@ -367,7 +384,12 @@ function buildNotionProperties(body, resolved, warn) {
     const url = choiceImageUrls[i];
     const imgProp = resolved.choiceImageUrl?.[L];
     if (imgProp && isSafeHttpUrl(url)) {
-      p[imgProp] = { url: String(url) };
+      const t = propsMeta?.[imgProp]?.type;
+      if (t === "files") {
+        p[imgProp] = { files: [{ name: `Choice ${L} Image`, external: { url: String(url) } }] };
+      } else {
+        p[imgProp] = { url: String(url) };
+      }
     }
   });
 
@@ -479,7 +501,7 @@ exports.handler = async (event) => {
     if (categoryIds.length > 2) warnings.push("Notion hanya diset 1 parent & 1 child; lainnya disimpan di Supabase saja.");
 
     // ------- Notion auto-detect & build -------
-    const { resolved } = await detectNotionProps();
+    const { props, resolved } = await detectNotionProps();
     const notionWarnings = [];
 
     const bodyForNotion = {
@@ -487,7 +509,7 @@ exports.handler = async (event) => {
       parentCategoryLabel: mainParentLabel || body.parentCategoryLabel,
       childCategoryLabel: mainChildLabel || body.childCategoryLabel,
     };
-    const properties = buildNotionProperties(bodyForNotion, resolved, notionWarnings);
+    const properties = buildNotionProperties(bodyForNotion, resolved, notionWarnings, props);
 
     if (!resolved.title) {
       return json(400, { error: "notion_title_property_missing", warnings: [...warnings, ...notionWarnings] });
@@ -502,7 +524,7 @@ exports.handler = async (event) => {
     } else {
       if (isDry) notionPageId = "dry-run-new-id";
       else {
-        const resp = await notion.pages.create({ parent: { database_id: NOTION_DB_MASTER }, properties });
+        const resp = await notion.pages.create({ parent: { database_id: NOTION_DB_QUESTION }, properties });
         notionPageId = resp.id;
       }
     }

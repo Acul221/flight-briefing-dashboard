@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
+import PropTypes from "prop-types";
 
 export default function ChoiceCard({
-  choice,
+  choice = { text: "", image: null, explanation: "" },
   index,
   selected,
   isCorrect,
@@ -9,6 +10,7 @@ export default function ChoiceCard({
   showExplanation,
   isReview,
 }) {
+  const choiceText = typeof choice === "string" ? choice : (choice?.text ?? "");
   const isSelected = selected === index;
   const locked = showExplanation || isReview;
 
@@ -49,7 +51,7 @@ export default function ChoiceCard({
       role="option"
       aria-selected={isSelected}
     >
-      <strong className="mr-2">{String.fromCharCode(65 + index)}.</strong> {choice.text}
+      <strong className="mr-2">{String.fromCharCode(65 + index)}.</strong> {choiceText}
 
       {choice.image && (
         <img
@@ -75,3 +77,20 @@ export default function ChoiceCard({
     </motion.button>
   );
 }
+
+ChoiceCard.propTypes = {
+  choice: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.shape({
+      text: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+      image: PropTypes.string,
+      explanation: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+    }),
+  ]),
+  index: PropTypes.number,
+  selected: PropTypes.number,
+  isCorrect: PropTypes.bool,
+  onSelect: PropTypes.func,
+  showExplanation: PropTypes.bool,
+  isReview: PropTypes.bool,
+};

@@ -6,30 +6,65 @@ import {
   updateCategory,
   deleteCategory,
 } from "@/hooks/useCategoriesTree";
-import { Plus, RefreshCcw, Trash2, Pencil, Check, X } from "lucide-react";
+import { Plus, RefreshCcw, Trash2, Check, X, ChevronDown, ChevronRight, Minimize2, Maximize2 } from "lucide-react";
 
-/** Simple tree node */
-function Node({ node, onSelect, selectedId }) {
+/** Enhanced tree node with expand/collapse */
+function Node({ node, onSelect, selectedId, expandedMap, setExpandedMap }) {
   const active = selectedId === node.id;
+  const hasChildren = node.children?.length > 0;
+  const expanded = expandedMap[node.id] ?? true;
+
+  const toggleExpand = (e) => {
+    e.stopPropagation();
+    setExpandedMap((prev) => ({ ...prev, [node.id]: !expanded }));
+  };
+
   return (
     <div className="mb-1">
       <div
         onClick={() => onSelect(node)}
-        className={`px-2 py-1 rounded cursor-pointer text-sm flex items-center justify-between ${
-          active ? "bg-base-200 font-medium" : "hover:bg-base-100"
-        }`}
+        className={`
+          px-2 py-1 rounded cursor-pointer text-sm flex items-center justify-between group
+          ${active ? "bg-base-200 font-medium" : "hover:bg-base-100"}
+        `}
       >
-        <span>
-          {node.label}
-          {!node.is_active && <span className="badge badge-ghost ml-2">inactive</span>}
-          {node.requires_aircraft && <span className="badge badge-outline ml-2">requires AC</span>}
-          {node.pro_only && <span className="badge badge-primary ml-2">PRO</span>}
-        </span>
+        <div className="flex items-center gap-1">
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={toggleExpand}
+              className="mr-1 opacity-70 hover:opacity-100"
+            >
+              {expanded ? (
+                <ChevronDown size={14} className="inline-block" />
+              ) : (
+                <ChevronRight size={14} className="inline-block" />
+              )}
+            </button>
+          ) : (
+            <span className="w-[1rem]" />
+          )}
+
+          <span onClick={() => onSelect(node)}>
+            {node.label}
+            {!node.is_active && <span className="badge badge-ghost ml-2">inactive</span>}
+            {node.requires_aircraft && <span className="badge badge-outline ml-2">requires AC</span>}
+            {node.pro_only && <span className="badge badge-primary ml-2">PRO</span>}
+          </span>
+        </div>
       </div>
-      {node.children?.length > 0 && (
-        <div className="ml-4 mt-1">
+
+      {hasChildren && expanded && (
+        <div className="ml-4 mt-1 border-l border-slate-200 pl-2">
           {node.children.map((c) => (
-            <Node key={c.id} node={c} onSelect={onSelect} selectedId={selectedId} />
+            <Node
+              key={c.id}
+              node={c}
+              onSelect={onSelect}
+              selectedId={selectedId}
+              expandedMap={expandedMap}
+              setExpandedMap={setExpandedMap}
+            />
           ))}
         </div>
       )}
@@ -43,6 +78,7 @@ export default function CategoryManager() {
 
   const [selected, setSelected] = useState(null);
   const [mode, setMode] = useState("view"); // "view" | "create" | "edit"
+  const [expandedMap, setExpandedMap] = useState({});
   const [form, setForm] = useState({
     label: "",
     parent_id: "",
@@ -53,7 +89,7 @@ export default function CategoryManager() {
   });
 
   useEffect(() => {
-    if (mode === "create") return; // keep form
+    if (mode === "create") return; // keep form when creating
     if (selected) {
       setForm({
         label: selected.label || "",
@@ -64,26 +100,11 @@ export default function CategoryManager() {
         order_index: Number(selected.order_index || 0),
       });
     } else {
-      setForm({
-        label: "",
-        parent_id: "",
-        requires_aircraft: false,
-        pro_only: false,
-        is_active: true,
-        order_index: 0,
-      });
+      resetForm();
     }
   }, [selected, mode]);
 
-  const parentOptions = useMemo(() => {
-    // hanya root yg bisa jadi parent (parent_id null)
-    const roots = flat.filter((n) => !n.parent_id);
-    return [{ id: "", label: "(root)" }, ...roots];
-  }, [flat]);
-
-  const onNewParent = () => {
-    setMode("create");
-    setSelected(null);
+  const resetForm = () =>
     setForm({
       label: "",
       parent_id: "",
@@ -92,10 +113,19 @@ export default function CategoryManager() {
       is_active: true,
       order_index: 0,
     });
+
+  const parentOptions = useMemo(() => {
+    const roots = flat.filter((n) => !n.parent_id);
+    return [{ id: "", label: "(root)" }, ...roots];
+  }, [flat]);
+
+  const onNewParent = () => {
+    setMode("create");
+    setSelected(null);
+    resetForm();
   };
 
   const onNewChild = () => {
-    // kalau belum ada yg dipilih, treat as child of root? pakai root default
     const pId = selected?.id || "";
     setMode("create");
     setForm({
@@ -145,6 +175,22 @@ export default function CategoryManager() {
     }
   }
 
+  const expandAll = () => {
+    const newMap = {};
+    flat.forEach((n) => {
+      if (n.children?.length || flat.some((f) => f.parent_id === n.id)) newMap[n.id] = true;
+    });
+    setExpandedMap(newMap);
+  };
+
+  const collapseAll = () => {
+    const newMap = {};
+    flat.forEach((n) => {
+      if (n.children?.length || flat.some((f) => f.parent_id === n.id)) newMap[n.id] = false;
+    });
+    setExpandedMap(newMap);
+  };
+
   return (
     <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Left: Tree */}
@@ -155,10 +201,20 @@ export default function CategoryManager() {
             <button className="btn btn-ghost btn-xs" onClick={reload}>
               <RefreshCcw size={14} /> Refresh
             </button>
+            <button className="btn btn-outline btn-xs" onClick={expandAll}>
+              <Maximize2 size={14} /> Expand All
+            </button>
+            <button className="btn btn-outline btn-xs" onClick={collapseAll}>
+              <Minimize2 size={14} /> Collapse All
+            </button>
             <button className="btn btn-primary btn-xs" onClick={onNewParent}>
               <Plus size={14} /> New Parent
             </button>
-            <button className="btn btn-outline btn-xs" onClick={onNewChild} disabled={!selected}>
+            <button
+              className="btn btn-outline btn-xs"
+              onClick={onNewChild}
+              disabled={!selected}
+            >
               <Plus size={14} /> New Child
             </button>
           </div>
@@ -169,7 +225,17 @@ export default function CategoryManager() {
           {!loading && !tree.length && <div className="text-sm opacity-60">No categories.</div>}
           {!loading &&
             tree.map((n) => (
-              <Node key={n.id} node={n} onSelect={(x) => { setSelected(x); setMode("edit"); }} selectedId={selected?.id} />
+              <Node
+                key={n.id}
+                node={n}
+                onSelect={(x) => {
+                  setSelected(x);
+                  setMode("edit");
+                }}
+                selectedId={selected?.id}
+                expandedMap={expandedMap}
+                setExpandedMap={setExpandedMap}
+              />
             ))}
         </div>
       </div>
@@ -178,21 +244,25 @@ export default function CategoryManager() {
       <div className="md:col-span-2 border rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold">
-            {mode === "create" ? "Create Category" : selected ? `Edit: ${selected.label}` : "Select a category"}
+            {mode === "create"
+              ? "Create Category"
+              : selected
+              ? `Edit: ${selected.label}`
+              : "Select a category"}
           </h2>
-          <div className="flex gap-2">
-            {selected && mode === "edit" && (
-              <button className="btn btn-error btn-sm" onClick={onDelete}>
-                <Trash2 size={16} /> Delete
-              </button>
-            )}
-          </div>
+          {selected && mode === "edit" && (
+            <button className="btn btn-error btn-sm" onClick={onDelete}>
+              <Trash2 size={16} /> Delete
+            </button>
+          )}
         </div>
 
         {(mode === "create" || (mode === "edit" && selected)) && (
           <form className="space-y-3" onSubmit={onSave}>
             <div>
-              <label className="label"><span className="label-text">Label</span></label>
+              <label className="label">
+                <span className="label-text">Label</span>
+              </label>
               <input
                 className="input input-bordered w-full"
                 value={form.label}
@@ -202,14 +272,18 @@ export default function CategoryManager() {
             </div>
 
             <div>
-              <label className="label"><span className="label-text">Parent</span></label>
+              <label className="label">
+                <span className="label-text">Parent</span>
+              </label>
               <select
                 className="select select-bordered w-full"
                 value={form.parent_id || ""}
                 onChange={(e) => setForm({ ...form, parent_id: e.target.value })}
               >
                 {parentOptions.map((p) => (
-                  <option key={p.id || "root"} value={p.id || ""}>{p.label || "(root)"}</option>
+                  <option key={p.id || "root"} value={p.id || ""}>
+                    {p.label || "(root)"}
+                  </option>
                 ))}
               </select>
               <p className="text-xs opacity-60 mt-1">
@@ -223,7 +297,9 @@ export default function CategoryManager() {
                   type="checkbox"
                   className="toggle"
                   checked={form.requires_aircraft}
-                  onChange={(e) => setForm({ ...form, requires_aircraft: e.target.checked })}
+                  onChange={(e) =>
+                    setForm({ ...form, requires_aircraft: e.target.checked })
+                  }
                 />
                 <span className="text-sm">Requires aircraft</span>
               </label>
@@ -233,7 +309,9 @@ export default function CategoryManager() {
                   type="checkbox"
                   className="toggle"
                   checked={form.pro_only}
-                  onChange={(e) => setForm({ ...form, pro_only: e.target.checked })}
+                  onChange={(e) =>
+                    setForm({ ...form, pro_only: e.target.checked })
+                  }
                 />
                 <span className="text-sm">PRO only</span>
               </label>
@@ -243,18 +321,27 @@ export default function CategoryManager() {
                   type="checkbox"
                   className="toggle"
                   checked={form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                  onChange={(e) =>
+                    setForm({ ...form, is_active: e.target.checked })
+                  }
                 />
                 <span className="text-sm">Active</span>
               </label>
 
               <div>
-                <label className="label"><span className="label-text">Order index</span></label>
+                <label className="label">
+                  <span className="label-text">Order index</span>
+                </label>
                 <input
                   type="number"
                   className="input input-bordered w-full"
                   value={form.order_index}
-                  onChange={(e) => setForm({ ...form, order_index: Number(e.target.value || 0) })}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      order_index: Number(e.target.value || 0),
+                    })
+                  }
                 />
               </div>
             </div>
@@ -263,7 +350,11 @@ export default function CategoryManager() {
               <button type="submit" className="btn btn-primary btn-sm">
                 <Check size={16} /> Save
               </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMode("view")}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setMode("view")}
+              >
                 <X size={16} /> Cancel
               </button>
             </div>
@@ -271,7 +362,9 @@ export default function CategoryManager() {
         )}
 
         {mode === "view" && !selected && (
-          <p className="text-sm opacity-60">Pilih kategori di kiri, atau klik “New Parent/Child”.</p>
+          <p className="text-sm opacity-60">
+            Pilih kategori di kiri, atau klik “New Parent/Child”.
+          </p>
         )}
       </div>
     </div>

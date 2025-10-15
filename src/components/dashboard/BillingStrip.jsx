@@ -30,7 +30,9 @@ export default function BillingStrip() {
   // ensure session
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
+    const auth = supabase?.auth;
+    if (!auth?.getSession) return () => {};
+    auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setUser(data?.session?.user || null);
     });

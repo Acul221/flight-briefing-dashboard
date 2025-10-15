@@ -28,8 +28,8 @@ const SettingsPage     = lazy(() => import("./pages/SettingsPage"));
 const PrivacyToolsPage = lazy(() => import("./pages/PrivacyToolsPage"));
 
 /* ---------------- Quiz & Exam ---------------- */
-const QuizSelector    = lazy(() => import("./pages/QuizSelector"));
-const SubjectSelector = lazy(() => import("./pages/SubjectSelector"));
+const OverviewPage    = lazy(() => import("./pages/quiz/OverviewPage"));
+const SubCategoryGrid = lazy(() => import("./pages/quiz/SubCategoryGrid"));
 const QuizPage        = lazy(() => import("./pages/QuizPage"));
 const ResultPage      = lazy(() => import("./pages/ResultPage"));
 const ExamPage        = lazy(() => import("./modules/exam/ExamPage"));
@@ -48,7 +48,7 @@ const LogbookPrint = lazy(() => import("./pages/LogbookPrint"));
 
 /* ---------------- Admin ---------------- */
 const AdminDashboard        = lazy(() => import("./pages/AdminDashboard"));
-const AdminPromos           = lazy(() => import("./pages/AdminPromos"));
+const AdminPromos           = lazy(() => import("./pages/admin/AdminPromos"));
 const AdminUsers            = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminOrders           = lazy(() => import("./pages/admin/AdminOrders"));
 const AdminNewsletter       = lazy(() => import("./pages/admin/AdminNewsletter"));
@@ -88,11 +88,11 @@ export default function App() {
           {/* Landing */}
           <Route path="/" element={<DisclaimerPage />} />
 
-          {/* Quiz (public) — now wrapped with QuizShell (sidebar + content) */}
+          {/* Quiz (public) — wrapped with QuizShell (sidebar + content) */}
           <Route path="/quiz" element={<QuizShell />}>
-            <Route index element={<QuizSelector />} />
-            <Route path=":aircraft" element={<SubjectSelector />} />
-            <Route path=":aircraft/:subject" element={<QuizPage />} />
+            <Route index element={<OverviewPage />} />
+            <Route path=":categorySlug" element={<SubCategoryGrid />} />
+            <Route path=":categorySlug/:subjectSlug" element={<QuizPage />} />
             <Route path="result/:attemptId" element={<ResultPage />} />
           </Route>
 

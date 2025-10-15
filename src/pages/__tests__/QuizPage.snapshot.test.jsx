@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { renderWithRouter } from "@/tests/test-utils";
 import { vi } from "vitest";
 import QuizPage from "../QuizPage";
 
@@ -23,37 +23,32 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-// mock fetch to return dummy questions
+// mock fetch for quiz runtime
 beforeAll(() => {
-  global.fetch = vi.fn(() =>
-    Promise.resolve({
-      json: () =>
-        Promise.resolve([
-          {
-            id: "q1",
-            question: "What is lift?",
-            choices: [
-              { text: "Force upward", isCorrect: true, explanation: "Correct" },
-              { text: "Force downward", isCorrect: false, explanation: "Wrong" },
-            ],
-            tags: ["aero"],
-            source: "FCOM",
-            level: "easy",
-          },
-          {
-            id: "q2",
-            question: "What is drag?",
-            choices: [
-              { text: "Force resisting motion", isCorrect: true, explanation: "Correct" },
-              { text: "Force upward", isCorrect: false, explanation: "Wrong" },
-            ],
-            tags: ["aero"],
-            source: "FCOM",
-            level: "medium",
-          },
-        ]),
-    })
-  );
+  global.fetch = vi.fn(async (url) => {
+    if (String(url).includes("/.netlify/functions/quiz-pull")) {
+      return {
+        ok: true,
+        json: async () => ({
+          items: Array.from({ length: 20 }).map((_, i) => {
+            const stem = i === 0 ? "What is lift" : `Question ${i + 1}`;
+            return {
+              id: String(i + 1),
+              stem,
+              question: stem,
+              text: stem,
+              choices: ["Option A", "Option B", "Option C", "Option D"],
+            };
+          }),
+        }),
+      };
+    }
+    return { ok: false, json: async () => ({ error: "not mocked" }) };
+  });
+});
+
+afterAll(() => {
+  global.fetch = undefined;
 });
 
 describe("QuizPage snapshot tests", () => {
@@ -65,7 +60,11 @@ describe("QuizPage snapshot tests", () => {
     useSession.mockReturnValue(null);
     useSubscription.mockReturnValue({ subscription: null });
 
-    const { container, findByText } = render(<QuizPage />);
+    const route = "/quiz/a320/systems?mode=practice";
+    const { container, findByText } = renderWithRouter(<QuizPage />, {
+      route,
+      path: "/quiz/:aircraft/:subject",
+    });
 
     // wait until first question loaded
     await findByText(/What is lift/i);
@@ -77,7 +76,11 @@ describe("QuizPage snapshot tests", () => {
     useSession.mockReturnValue({ user: { id: "123" } });
     useSubscription.mockReturnValue({ subscription: { status: "inactive" } });
 
-    const { container, findByText } = render(<QuizPage />);
+    const route = "/quiz/a320/systems?mode=practice";
+    const { container, findByText } = renderWithRouter(<QuizPage />, {
+      route,
+      path: "/quiz/:aircraft/:subject",
+    });
 
     await findByText(/What is lift/i);
 
@@ -88,7 +91,11 @@ describe("QuizPage snapshot tests", () => {
     useSession.mockReturnValue({ user: { id: "123" } });
     useSubscription.mockReturnValue({ subscription: { status: "active" } });
 
-    const { container, findByText } = render(<QuizPage />);
+    const route = "/quiz/a320/systems?mode=practice";
+    const { container, findByText } = renderWithRouter(<QuizPage />, {
+      route,
+      path: "/quiz/:aircraft/:subject",
+    });
 
     await findByText(/What is lift/i);
 

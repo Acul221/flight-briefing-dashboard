@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useNews from '@/hooks/useNews';
+import { formatDate as utilsFormatDate } from '@/utils/date';
 
 const NewsWidget = () => {
   const { articles, loading, refresh } = useNews();
@@ -93,7 +94,7 @@ const NewsWidget = () => {
                 {getIcon(article.title)} {truncate(article.title, 72)}
               </a>
               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                <span>{formatDate(article.pubDate)}</span>
+                <span>{utilsFormatDate(article.pubDate, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                 <span>—</span>
                 <span className="italic">{article.source}</span>
               </div>

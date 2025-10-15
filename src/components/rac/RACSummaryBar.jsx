@@ -1,4 +1,5 @@
 import { diffMinutes } from "@/lib/timeMath";
+import PropTypes from "prop-types";
 
 const pillClass = (d, thr) => {
   if (d == null) return "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200";
@@ -8,7 +9,7 @@ const pillClass = (d, thr) => {
   return "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300";
 };
 
-export default function RACSummaryBar({ items, thresholds }) {
+export default function RACSummaryBar({ items = [], thresholds }) {
   return (
     <div className="flex flex-wrap gap-2 p-2 rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
       {items.map(({ code, deviation }) => (
@@ -19,3 +20,16 @@ export default function RACSummaryBar({ items, thresholds }) {
     </div>
   );
 }
+
+RACSummaryBar.propTypes = {
+  items: PropTypes.arrayOf(
+    PropTypes.shape({
+      code: PropTypes.string,
+      deviation: PropTypes.number,
+    })
+  ),
+  thresholds: PropTypes.shape({
+    green: PropTypes.number,
+    yellow: PropTypes.number,
+  }),
+};

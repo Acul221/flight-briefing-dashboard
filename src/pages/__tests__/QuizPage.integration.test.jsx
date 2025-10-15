@@ -23,27 +23,27 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-// mock fetch to return dummy questions
+// mock fetch to return dummy questions with expected shape
 beforeAll(() => {
-  global.fetch = vi.fn(() =>
-    Promise.resolve({
-      json: () =>
-        Promise.resolve(
-          Array.from({ length: 25 }, (_, i) => ({
-            id: `q${i + 1}`,
-            question: `Dummy question ${i + 1}`,
-            choices: [
-              { text: "A", isCorrect: i % 2 === 0, explanation: "Reason A" },
-              { text: "B", isCorrect: i % 2 !== 0, explanation: "Reason B" },
-            ],
-            tags: ["tag"],
-            source: "FCOM",
-            level: "easy",
-          }))
-        ),
-    })
-  );
+  global.fetch = vi.fn(async (url) => {
+    if (String(url).includes("/.netlify/functions/quiz-pull")) {
+      const items = Array.from({ length: 25 }, (_, i) => {
+        const stem = `Dummy question ${i + 1}`;
+        return {
+          id: `q${i + 1}`,
+          stem,
+          question: stem,
+          text: stem,
+          choices: ["Option A", "Option B", "Option C", "Option D"],
+        };
+      });
+      return { ok: true, json: async () => ({ items }) };
+    }
+    return { ok: false, json: async () => ({ error: "not mocked" }) };
+  });
 });
+
+afterAll(() => { global.fetch = undefined; });
 
 async function simulateQuizFlow(expectedCount) {
   await screen.findByText(/Dummy question 1/i);

@@ -18,7 +18,7 @@ function json(status, body, extraHeaders = {}) {
     statusCode: status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",                // sesuaikan jika perlu strict
+      "Access-Control-Allow-Origin": "*", // sesuaikan jika perlu strict
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       ...extraHeaders,
@@ -38,14 +38,16 @@ export async function handler(event) {
   }
 
   try {
-    const authHeader = event.headers.authorization || event.headers.Authorization;
+    const authHeader =
+      event.headers.authorization || event.headers.Authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       return json(401, { error: "Missing or invalid Authorization header" });
     }
     const token = authHeader.split(" ")[1];
 
     // Validasi token → dapatkan user dari token
-    const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+    const { data: userData, error: userErr } =
+      await supabaseAdmin.auth.getUser(token);
     if (userErr || !userData?.user) {
       return json(401, { error: "Invalid or expired token" });
     }
@@ -71,16 +73,23 @@ export async function handler(event) {
     }
 
     if (requester.id !== targetUserId && !isAdmin) {
-      return json(403, { error: "Forbidden: you can only delete your own account" });
+      return json(403, {
+        error: "Forbidden: you can only delete your own account",
+      });
     }
 
     // Catat log (opsional)
-    await supabaseAdmin.from("deletion_logs").insert({
-      user_id: targetUserId,
-      requested_by: requester.id,
-      requested_at: new Date().toISOString(),
-      note: requester.id === targetUserId ? "self-delete" : "admin-delete",
-    }).catch(() => { /* tabel opsional, abaikan error jika belum ada */ });
+    await supabaseAdmin
+      .from("deletion_logs")
+      .insert({
+        user_id: targetUserId,
+        requested_by: requester.id,
+        requested_at: new Date().toISOString(),
+        note: requester.id === targetUserId ? "self-delete" : "admin-delete",
+      })
+      .catch(() => {
+        /* tabel opsional, abaikan error jika belum ada */
+      });
 
     // --- Bersihkan Storage (opsional, jika kamu pakai bucket per user) ---
     const buckets = (process.env.STORAGE_BUCKETS || "")
@@ -92,11 +101,13 @@ export async function handler(event) {
       try {
         // Asumsi pola: file disimpan di path prefix userId/
         // 1) list semua file di prefix userId (batasi batch)
-        const listRes = await supabaseAdmin.storage.from(bucket).list(targetUserId, {
-          limit: 1000,
-          offset: 0,
-          sortBy: { column: "name", order: "asc" },
-        });
+        const listRes = await supabaseAdmin.storage
+          .from(bucket)
+          .list(targetUserId, {
+            limit: 1000,
+            offset: 0,
+            sortBy: { column: "name", order: "asc" },
+          });
 
         if (listRes?.data?.length) {
           const paths = listRes.data.map((f) => `${targetUserId}/${f.name}`);
@@ -120,7 +131,9 @@ export async function handler(event) {
     const delRes = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
     if (delRes.error) {
       // Kalau error karena constraint, pastikan dulu CASCADE atau hapus manual record terkait
-      return json(500, { error: `Failed to delete auth user: ${delRes.error.message}` });
+      return json(500, {
+        error: `Failed to delete auth user: ${delRes.error.message}`,
+      });
     }
 
     return json(200, { ok: true, message: "Account deleted" });

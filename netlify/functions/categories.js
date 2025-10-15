@@ -58,25 +58,20 @@ exports.handler = async (event) => {
       /* ---------------------- LIST ---------------------- */
       case "GET": {
         const qs = event.queryStringParameters || {};
-        const rootOnly = qs.root_only === "1" || qs.root_only === "true";
-        const parentSlug = qs.parent_slug;
+        const parentSlug = qs.parent_slug ? String(qs.parent_slug).toLowerCase() : null;
 
-        let query = s.from("categories").select("*").order("label", { ascending: true });
-
-        if (rootOnly) query = query.is("parent_id", null);
-        if (parentSlug) {
-          const { data: parent } = await s
-            .from("categories")
-            .select("id")
-            .eq("slug", String(parentSlug).toLowerCase())
-            .maybeSingle();
-          if (!parent) return json(200, { items: [] });
-          query = query.eq("parent_id", parent.id);
-        }
-
-        const { data, error } = await query;
+        const { data, error } = await s.rpc("fn_get_categories_v3", {
+          p_parent_slug: parentSlug || null,
+        });
         if (error) throw error;
-        return json(200, { items: data || [] });
+
+        const categories = Array.isArray(data) ? data : [];
+        return json(200, {
+          success: true,
+          parent_slug: parentSlug || null,
+          count: categories.length,
+          categories,
+        });
       }
 
       /* ---------------------- CREATE ---------------------- */

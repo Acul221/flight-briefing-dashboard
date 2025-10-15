@@ -1,5 +1,7 @@
 // src/components/quiz/QuizHeader.jsx
-export default function QuizHeader({ aircraft, subject, currentIndex, total, level, source }) {
+import PropTypes from "prop-types";
+
+export default function QuizHeader({ aircraft = "", subject = "", currentIndex, total, level, source }) {
   // Clamp index agar tidak melebihi total-1
   const clampedIndex = Math.min(
     currentIndex ?? 0,
@@ -14,7 +16,7 @@ export default function QuizHeader({ aircraft, subject, currentIndex, total, lev
     >
       <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
         <h2 className="text-sm sm:text-base font-semibold">
-          {aircraft.toUpperCase()} / {subject.toUpperCase()}
+          {(aircraft || "").toUpperCase()} / {(subject || "").toUpperCase()}
         </h2>
         <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
           <span aria-label="Question progress">Q {clampedIndex + 1}/{total}</span>
@@ -39,3 +41,12 @@ export default function QuizHeader({ aircraft, subject, currentIndex, total, lev
     </header>
   );
 }
+
+QuizHeader.propTypes = {
+  aircraft: PropTypes.string,
+  subject: PropTypes.string,
+  currentIndex: PropTypes.number,
+  total: PropTypes.number,
+  level: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  source: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+};

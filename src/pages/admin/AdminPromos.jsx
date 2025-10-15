@@ -1,6 +1,7 @@
 // src/pages/admin/AdminPromos.jsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { formatDate } from "@/utils/date";
 
 /**
  * Struktur tabel yang diasumsikan:
@@ -358,8 +359,7 @@ function toInputDate(d) {
 
 function toHumanDate(d) {
   try {
-    const dt = new Date(d);
-    return dt.toLocaleDateString();
+    return formatDate(d);
   } catch {
     return "-";
   }

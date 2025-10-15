@@ -1,8 +1,9 @@
 // src/components/quiz/QuestionCard.jsx
 import { useState, useMemo } from "react";
+import PropTypes from "prop-types";
 
 export default function QuestionCard({
-  question,
+  question = { question: "", choices: [], explanations: [], choiceImages: [], correctIndex: 0 },
   index,
   total,
   selected,        // index pilihan user (0..3) atau null
@@ -12,7 +13,7 @@ export default function QuestionCard({
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const stem = String(question.question || "");
+  const stem = String((question?.stem ?? question?.question ?? question?.text ?? ""));
   const isLong = stem.length > 220;
   const stemShort = isLong && !expanded ? stem.slice(0, 220) + "…" : stem;
 
@@ -37,15 +38,10 @@ export default function QuestionCard({
         N°{String(index + 1).padStart(3, "0")} / {total} — ID: {question.legacy_id || question.id}
       </p>
 
-      <h3 className="font-semibold mb-2">Question {index + 1}</h3>
-      <p className="mb-3 leading-relaxed">
-        {stemShort}{" "}
-        {isLong && !expanded && (
-          <button onClick={() => setExpanded(true)} className="link link-primary text-sm">
-            Read more
-          </button>
-        )}
-      </p>
+      <h3 className="font-semibold mb-2">
+        {stem?.trim() ? stem : `Question ${index + 1}`}
+      </h3>
+      {stem?.trim() && <p className="mb-3 leading-relaxed">{stem}</p>}
 
       {question.questionImage && (
         <img
@@ -105,3 +101,23 @@ export default function QuestionCard({
     </div>
   );
 }
+
+QuestionCard.propTypes = {
+  question: PropTypes.shape({
+    question: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+    choices: PropTypes.array,
+    explanations: PropTypes.array,
+    choiceImages: PropTypes.array,
+    correctIndex: PropTypes.number,
+    explanation: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+    questionImage: PropTypes.string,
+    id: PropTypes.any,
+    legacy_id: PropTypes.any,
+  }),
+  index: PropTypes.number,
+  total: PropTypes.number,
+  selected: PropTypes.number,
+  onSelect: PropTypes.func,
+  showExplanation: PropTypes.bool,
+  isReview: PropTypes.bool,
+};
