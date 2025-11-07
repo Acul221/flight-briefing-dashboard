@@ -1,10 +1,11 @@
 // src/components/admin/QuestionEditorPanel.jsx
+// Sprint 1 admin update: normalized preview + simulated publish gating.
 import React, { useEffect, useMemo, useState } from "react";
 import RawInputParser from "@/components/admin/RawInputParser";
 import ImageUploader from "@/components/admin/ImageUploader";
-import QuestionPreview from "@/components/admin/QuestionPreview";
 import CategoryManagerPanel from "@/components/admin/CategoryManagerPanel";
-import { buildQuestionPayload } from "@/utils/buildQuestionPayload";
+import QuestionCard from "@/components/quiz/QuestionCard";
+import { buildNormalizedQuestion, validateNormalizedQuestion } from "@/lib/questionNormalization";
 
 const FN_BASE = (import.meta.env.VITE_FUNCTIONS_BASE || "/.netlify/functions").replace(/\/+$/, "");
 const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET;
@@ -14,13 +15,23 @@ const a4 = (arr) => {
   return [...arr, null, null, null].slice(0, 4);
 };
 
+const mapNormalizedToQuestionCard = (normalized) => ({
+  question: normalized.question,
+  choices: normalized.choices,
+  explanations: normalized.explanations,
+  choiceImages: normalized.choice_images,
+  questionImage: normalized.question_image,
+  correctIndex: normalized.correctIndex,
+});
+
 export default function QuestionEditorPanel({ questionId, onSaved }) {
   const isEdit = !!questionId;
 
   const [tab, setTab] = useState("form");
   const [showPayload, setShowPayload] = useState(false);
   const [loading, setLoading] = useState(isEdit);
-  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
   const [form, setForm] = useState({
     id: null,
@@ -38,6 +49,7 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
     tags: [],
     status: "draft",
     aircraft: "",
+    requires_aircraft: false,
   });
 
   // Load existing if edit
@@ -79,6 +91,7 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
           tags: Array.isArray(q.tags) ? q.tags : [],
           status: q.status || "draft",
           aircraft: q.aircraft || "",
+          requires_aircraft: !!q.requires_aircraft,
         });
       } catch (e) {
         console.error(e);
@@ -90,68 +103,62 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
     return () => { alive = false; };
   }, [isEdit, questionId]);
 
-  const updateField = (k, v) => setForm((p) => ({ ...p, [k]: v }));
-  const updateChoice = (L, v) => setForm((p) => ({ ...p, choices: { ...p.choices, [L]: v } }));
-  const updateExplanation = (i, v) =>
+  const updateField = (k, v) => {
+    setFeedback(null);
+    setForm((p) => ({ ...p, [k]: v }));
+  };
+  const updateChoice = (L, v) => {
+    setFeedback(null);
+    setForm((p) => ({ ...p, choices: { ...p.choices, [L]: v } }));
+  };
+  const updateExplanation = (i, v) => {
+    setFeedback(null);
     setForm((p) => ({ ...p, explanations: p.explanations.map((e, idx) => (i === idx ? v : e)) }));
-  const updateChoiceImage = (i, url) =>
+  };
+  const updateChoiceImage = (i, url) => {
+    setFeedback(null);
     setForm((p) => ({ ...p, choice_images: p.choice_images.map((c, idx) => (i === idx ? url : c)) }));
+  };
 
-  const errors = useMemo(() => {
-    const e = {};
-    if (!String(form.question_text || "").trim()) e.question_text = "Question is required.";
-    const ak = String(form.answer_key || "").toUpperCase();
-    if (!["A", "B", "C", "D"].includes(ak)) e.answer_key = "Answer key must be A/B/C/D.";
-    const hasAnyChoice = Object.values(form.choices || {}).some((v) => String(v || "").trim());
-    if (!hasAnyChoice) e.choices = "At least one choice should be filled.";
-    return e;
-  }, [form]);
-
-  async function handleSubmit(e) {
-    e?.preventDefault?.();
-    if (Object.keys(errors).length) {
-      alert("Please fix form errors first.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const normalized = {
+  const normalizedQuestion = useMemo(
+    () =>
+      buildNormalizedQuestion({
         ...form,
         choice_images: a4(form.choice_images),
         explanations: a4(form.explanations),
-      };
-      const payload = buildQuestionPayload(normalized);
-      if (!payload.legacy_id) payload.legacy_id = null;
-
-      const method = isEdit ? "PUT" : "POST";
-      const url = isEdit ? `${FN_BASE}/questions?id=${form.id}` : `${FN_BASE}/questions`;
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json", "x-admin-secret": ADMIN_SECRET },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`${res.status} ${data.error || "Submit failed"}`);
-
-      alert(isEdit ? "✅ Question updated" : "✅ Question created");
-      if (!isEdit && data?.id) {
-        // After create, switch to edit mode (persist id)
-        updateField("id", data.id);
-      }
-      onSaved?.();
-    } catch (err) {
-      alert("❌ Failed to save question: " + err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const payloadJSON = JSON.stringify(
-    buildQuestionPayload({ ...form, choice_images: a4(form.choice_images), explanations: a4(form.explanations) }),
-    null,
-    2
+      }),
+    [form]
   );
+  const validation = useMemo(
+    () => validateNormalizedQuestion(normalizedQuestion),
+    [normalizedQuestion]
+  );
+  const validationErrors = validation.errors || {};
+  const blockingCount = Object.keys(validationErrors).length;
+  const previewQuestion = useMemo(
+    () => mapNormalizedToQuestionCard(normalizedQuestion),
+    [normalizedQuestion]
+  );
+
+  const handlePublish = (e) => {
+    e?.preventDefault?.();
+    if (!validation.valid) {
+      setFeedback({
+        type: "error",
+        message: "Fix the highlighted fields before publishing.",
+      });
+      return;
+    }
+    setPublishing(true);
+    console.log("PUBLISH_PAYLOAD", normalizedQuestion);
+    setFeedback({
+      type: "success",
+      message: "Question ready (simulated publish) — payload logged to console.",
+    });
+    setPublishing(false);
+  };
+  const payloadJSON = JSON.stringify(normalizedQuestion, null, 2);
+  const actionDisabled = publishing || !validation.valid;
 
   if (loading) {
     return (
@@ -169,11 +176,13 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
         </div>
         <div className="flex gap-2">
           <button
-            className={`px-3 py-1 rounded text-white ${saving ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"}`}
-            onClick={handleSubmit}
-            disabled={saving}
+            className={`px-3 py-1 rounded text-white ${
+              actionDisabled ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+            onClick={handlePublish}
+            disabled={actionDisabled}
           >
-            {saving ? "Saving..." : (isEdit ? "Save" : "Create")}
+            {publishing ? "Publishing..." : "Publish"}
           </button>
           <button
             className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
@@ -181,8 +190,23 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
           >
             Payload
           </button>
-        </div>
       </div>
+    </div>
+
+      {feedback && (
+        <div
+          className={`alert ${feedback.type === "success" ? "alert-success" : "alert-warning"} text-sm`}
+          role="status"
+        >
+          {feedback.message}
+        </div>
+      )}
+
+      {!validation.valid && (
+        <div className="alert alert-warning text-sm" role="alert">
+          Fix {blockingCount} required field{blockingCount === 1 ? "" : "s"} before publishing.
+        </div>
+      )}
 
       {/* Tabs mini */}
       <div className="flex gap-3 border-b">
@@ -207,6 +231,7 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
             if (Array.isArray(parsed?.choice_images)) next.choice_images = a4(parsed.choice_images);
             if (Array.isArray(parsed?.explanations)) next.explanations = a4(parsed.explanations);
             setForm(next);
+            setFeedback(null);
             setTab("form");
           }}
         />
@@ -214,15 +239,23 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
 
       {/* FORM */}
       {tab === "form" && (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handlePublish} className="space-y-4">
           <div>
             <label className="block text-sm font-medium">Question</label>
             <textarea
               value={form.question_text}
               onChange={(e) => updateField("question_text", e.target.value)}
-              className={`w-full border rounded p-2 ${errors.question_text ? "border-red-500" : ""}`}
+              className={`w-full border rounded p-2 ${
+                validationErrors.question ? "border-red-500" : ""
+              }`}
+              aria-invalid={validationErrors.question ? "true" : "false"}
+              aria-describedby={validationErrors.question ? "question-text-error" : undefined}
             />
-            {errors.question_text && <p className="text-xs text-red-600">{errors.question_text}</p>}
+            {validationErrors.question && (
+              <p id="question-text-error" className="text-xs text-red-600">
+                {validationErrors.question}
+              </p>
+            )}
             <ImageUploader
               label="Question Image"
               value={form.question_image_url}
@@ -230,28 +263,38 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
             />
           </div>
 
-          {["A", "B", "C", "D"].map((L, i) => (
-            <div key={L} className="border rounded p-3 space-y-2">
-              <label className="block text-sm font-medium">Choice {L}</label>
-              <input
-                type="text"
-                value={form.choices[L]}
-                onChange={(e) => updateChoice(L, e.target.value)}
-                className={`w-full border rounded p-2 ${errors.choices ? "border-red-500" : ""}`}
-              />
-              <ImageUploader
-                label={`Image for ${L}`}
-                value={form.choice_images[i]}
-                onChange={(url) => updateChoiceImage(i, url)}
-              />
-              <textarea
-                placeholder="Explanation"
-                value={form.explanations[i]}
-                onChange={(e) => updateExplanation(i, e.target.value)}
-                className="w-full border rounded p-2 text-sm"
-              />
-            </div>
-          ))}
+          {["A", "B", "C", "D"].map((L, i) => {
+            const fieldError = validationErrors[`choices.${i}`];
+            return (
+              <div key={L} className="border rounded p-3 space-y-2">
+                <label className="block text-sm font-medium">Choice {L}</label>
+                <input
+                  type="text"
+                  value={form.choices[L]}
+                  onChange={(e) => updateChoice(L, e.target.value)}
+                  className={`w-full border rounded p-2 ${fieldError ? "border-red-500" : ""}`}
+                  aria-invalid={fieldError ? "true" : "false"}
+                  aria-describedby={fieldError ? `choice-${L}-error` : undefined}
+                />
+                {fieldError && (
+                  <p id={`choice-${L}-error`} className="text-xs text-red-600">
+                    {fieldError}
+                  </p>
+                )}
+                <ImageUploader
+                  label={`Image for ${L}`}
+                  value={form.choice_images[i]}
+                  onChange={(url) => updateChoiceImage(i, url)}
+                />
+                <textarea
+                  placeholder="Explanation"
+                  value={form.explanations[i]}
+                  onChange={(e) => updateExplanation(i, e.target.value)}
+                  className="w-full border rounded p-2 text-sm"
+                />
+              </div>
+            );
+          })}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -259,12 +302,21 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
               <select
                 value={form.answer_key}
                 onChange={(e) => updateField("answer_key", e.target.value)}
-                className={`border rounded p-2 ${errors.answer_key ? "border-red-500" : ""}`}
+                className={`border rounded p-2 ${
+                  validationErrors.correctIndex ? "border-red-500" : ""
+                }`}
+                aria-invalid={validationErrors.correctIndex ? "true" : "false"}
+                aria-describedby={validationErrors.correctIndex ? "correct-answer-error" : undefined}
               >
                 {["A", "B", "C", "D"].map((l) => (
                   <option key={l} value={l}>{l}</option>
                 ))}
               </select>
+              {validationErrors.correctIndex && (
+                <p id="correct-answer-error" className="text-xs text-red-600">
+                  {validationErrors.correctIndex}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium">Difficulty</label>
@@ -292,13 +344,31 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
 
           <div>
             <label className="block text-sm font-medium">Aircraft</label>
+            <label className="inline-flex items-center gap-2 text-xs mb-2">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-sm"
+                checked={!!form.requires_aircraft}
+                onChange={(e) => updateField("requires_aircraft", e.target.checked)}
+              />
+              Requires aircraft before publish
+            </label>
             <input
               type="text"
               value={form.aircraft}
               onChange={(e) => updateField("aircraft", e.target.value)}
-              className="w-full border rounded p-2"
+              className={`w-full border rounded p-2 ${
+                validationErrors.aircraft ? "border-red-500" : ""
+              }`}
               placeholder="e.g. A320"
+              aria-invalid={validationErrors.aircraft ? "true" : "false"}
+              aria-describedby={validationErrors.aircraft ? "aircraft-error" : undefined}
             />
+            {validationErrors.aircraft && (
+              <p id="aircraft-error" className="mt-1 text-xs text-red-600">
+                {validationErrors.aircraft}
+              </p>
+            )}
           </div>
 
           {/* Category Manager (inline) */}
@@ -312,6 +382,11 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
               withDelete
               withToast
             />
+            {validationErrors.category && (
+              <p className="mt-2 text-xs text-red-600">
+                {validationErrors.category}
+              </p>
+            )}
           </div>
 
           <div>
@@ -345,7 +420,11 @@ export default function QuestionEditorPanel({ questionId, onSaved }) {
       )}
 
       {/* PREVIEW */}
-      {tab === "preview" && <QuestionPreview question={form} />}
+      {tab === "preview" && (
+        <div aria-live="polite" role="status">
+          <QuestionCard question={previewQuestion} index={0} total={1} showExplanation />
+        </div>
+      )}
 
       {/* Payload Modal */}
       {showPayload && (

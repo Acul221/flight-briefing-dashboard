@@ -1,5 +1,5 @@
 import React from "react"; // ✅ WAJIB ada kalau pakai JSX
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@/tests/test-utils";
 import { vi } from "vitest";
 import QuizPage from "../QuizPage";
 

@@ -13,6 +13,8 @@ export default function useQuizSession({ aircraft, subject }) {
   const [showExplanation, setShowExplanation] = useState(false);
   const [isReview, setIsReview] = useState(false);
   const [selected, setSelected] = useState(null); // choiceIdx at currentIndex
+  const [difficulty, setDifficulty] = useState("");
+  const [requiresAircraft, setRequiresAircraft] = useState(false);
   const abortRef = useRef(null);
 
   // utils
@@ -21,16 +23,29 @@ export default function useQuizSession({ aircraft, subject }) {
   const safeSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   const safeJSON = (s, dflt) => { try { return JSON.parse(s); } catch { return dflt; } };
 
+  useEffect(() => {
+    const saved = safeJSON(safeGet(storageKey), null);
+    if (saved && typeof saved === "object") {
+      const savedDifficulty = typeof saved.difficulty === "string" ? saved.difficulty : "";
+      const savedRequires = typeof saved.requiresAircraft === "boolean" ? saved.requiresAircraft : false;
+      setDifficulty(savedDifficulty);
+      setRequiresAircraft(savedRequires);
+    } else {
+      setDifficulty("");
+      setRequiresAircraft(false);
+    }
+  }, [storageKey]);
+
   // ===== Fetch + restore =====
   useEffect(() => {
     let mounted = true;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    setLoading(true);
+    setError(null);
 
     async function load() {
-      setLoading(true);
-      setError(null);
       try {
         const base = (import.meta.env?.VITE_FUNCTIONS_BASE || "/.netlify/functions").replace(/\/+$/, "");
         const u = new URL(`${base}/quiz-pull`, window.location.origin);
@@ -40,6 +55,8 @@ export default function useQuizSession({ aircraft, subject }) {
         u.searchParams.set("strict_aircraft", "0");
         // default limit; biarkan server shuffle/seed bila perlu
         u.searchParams.set("limit", "20");
+        if (difficulty) u.searchParams.set("difficulty", difficulty);
+        if (requiresAircraft) u.searchParams.set("requires_aircraft", "true");
 
         const res = await fetch(u.toString().replace(window.location.origin, ""), { signal: controller.signal, headers: { accept: "application/json" } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -105,6 +122,8 @@ export default function useQuizSession({ aircraft, subject }) {
             showExplanation:
               typeof restoredShow === "boolean" ? restoredShow : selectedFromAnswers != null,
             isReview: sameSet ? (saved.isReview ?? false) : false,
+            difficulty,
+            requiresAircraft,
           })
         );
       } catch (e) {
@@ -118,9 +137,9 @@ export default function useQuizSession({ aircraft, subject }) {
       }
     }
 
-    load();
-    return () => { mounted = false; controller.abort(); };
-  }, [aircraft, subject, storageKey]);
+    const timer = setTimeout(load, 250);
+    return () => { mounted = false; clearTimeout(timer); controller.abort(); };
+  }, [aircraft, subject, storageKey, difficulty, requiresAircraft]);
 
   // ===== Persist every change =====
   useEffect(() => {
@@ -132,9 +151,11 @@ export default function useQuizSession({ aircraft, subject }) {
       isReview,
       selected,
       showExplanation,
+      difficulty,
+      requiresAircraft,
     };
     safeSet(storageKey, JSON.stringify(payload));
-  }, [storageKey, currentIndex, answers, isReview, selected, showExplanation]);
+  }, [storageKey, currentIndex, answers, isReview, selected, showExplanation, difficulty, requiresAircraft]);
 
   // ===== Prefetch gambar soal berikutnya =====
   useEffect(() => {
@@ -230,6 +251,8 @@ export default function useQuizSession({ aircraft, subject }) {
       selected: null,
       showExplanation: false,
       isReview: false,
+      difficulty,
+      requiresAircraft,
     }));
     logEvent("session_reset", { aircraft, subject });
   };
@@ -244,6 +267,8 @@ export default function useQuizSession({ aircraft, subject }) {
     showExplanation,
     isReview,
     selected,
+    difficulty,
+    requiresAircraft,
     // actions
     answer,          // <-- sudah mendukung { silent }
     next,
@@ -252,5 +277,7 @@ export default function useQuizSession({ aircraft, subject }) {
     resetSession,
     setIsReview,     // untuk paksa Review (gating/timeout)
     setShowExplanation, // untuk paksa hide di Exam Mode
+    setDifficulty,
+    setRequiresAircraft,
   };
 }

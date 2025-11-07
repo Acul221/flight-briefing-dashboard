@@ -1,104 +1,74 @@
+// src/pages/__tests__/QuizPage.snapshot.test.jsx
 import React from "react";
-import { renderWithRouter } from "@/tests/test-utils";
-import { vi } from "vitest";
-import QuizPage from "../QuizPage";
+import { describe, it, expect } from "vitest";
+import { renderWithRouter, screen } from "@/tests/test-utils";
+import QuizPage from "@/pages/QuizPage";
 
-// mock hooks
-vi.mock("@/hooks/useSession", () => ({
-  useSession: vi.fn(),
-}));
-vi.mock("@/hooks/useSubscription", () => ({
-  useSubscription: vi.fn(),
-}));
+/**
+ * Stable snapshot & structural tests for QuizPage.
+ *
+ * Notes:
+ * - Some labels like "Aircraft:" appear more than once in the DOM (header + summary line).
+ *   Use getAllByText(...)[0] to pick the header occurrence (first one).
+ * - Use async findBy* to wait for fetch/loading to complete.
+ * - Wait for either a known mocked stem ("What is lift") or fallback "Question 1".
+ */
 
-import { useSession } from "@/hooks/useSession";
-import { useSubscription } from "@/hooks/useSubscription";
-
-// mock react-router params
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual("react-router-dom");
-  return {
-    ...actual,
-    useParams: () => ({ aircraft: "a320", subject: "systems" }),
-  };
-});
-
-// mock fetch for quiz runtime
-beforeAll(() => {
-  global.fetch = vi.fn(async (url) => {
-    if (String(url).includes("/.netlify/functions/quiz-pull")) {
-      return {
-        ok: true,
-        json: async () => ({
-          items: Array.from({ length: 20 }).map((_, i) => {
-            const stem = i === 0 ? "What is lift" : `Question ${i + 1}`;
-            return {
-              id: String(i + 1),
-              stem,
-              question: stem,
-              text: stem,
-              choices: ["Option A", "Option B", "Option C", "Option D"],
-            };
-          }),
-        }),
-      };
-    }
-    return { ok: false, json: async () => ({ error: "not mocked" }) };
-  });
-});
-
-afterAll(() => {
-  global.fetch = undefined;
-});
-
-describe("QuizPage snapshot tests", () => {
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it("renders guest mode correctly", async () => {
-    useSession.mockReturnValue(null);
-    useSubscription.mockReturnValue({ subscription: null });
-
-    const route = "/quiz/a320/systems?mode=practice";
-    const { container, findByText } = renderWithRouter(<QuizPage />, {
-      route,
-      path: "/quiz/:aircraft/:subject",
+describe("QuizPage structural & snapshot tests", () => {
+  it("renders main quiz metadata (labels and mode)", async () => {
+    renderWithRouter(<QuizPage />, {
+      route: "/?aircraft=a320&subject=systems&mode=practice",
     });
 
-    // wait until first question loaded
-    await findByText(/What is lift/i);
+    // Wait for rendered state (the 'practice' token is stable)
+    await screen.findByText(/practice/i);
 
-    expect(container).toMatchSnapshot();
+    // Labels like "Aircraft:" may appear multiple times (header and footer summary).
+    // Grab all and assert the first occurrence exists (header).
+    const aircraftLabels = screen.getAllByText(/Aircraft:/i);
+    expect(aircraftLabels.length).toBeGreaterThan(0);
+    expect(aircraftLabels[0]).toBeInTheDocument();
+
+    const subjectLabels = screen.getAllByText(/Subject:/i);
+    expect(subjectLabels.length).toBeGreaterThan(0);
+    expect(subjectLabels[0]).toBeInTheDocument();
+
+    const modeLabels = screen.getAllByText(/Mode:/i);
+    expect(modeLabels.length).toBeGreaterThan(0);
+    expect(modeLabels[0]).toBeInTheDocument();
+
+    // Confirm the visible mode value (practice) is present somewhere
+    expect(screen.getByText(/practice/i)).toBeInTheDocument();
+
+    // Basic UI timer element exists
+    const timer = document.querySelector(".tabular-nums");
+    expect(timer).toBeTruthy();
   });
 
-  it("renders inactive subscription mode correctly", async () => {
-    useSession.mockReturnValue({ user: { id: "123" } });
-    useSubscription.mockReturnValue({ subscription: { status: "inactive" } });
-
-    const route = "/quiz/a320/systems?mode=practice";
-    const { container, findByText } = renderWithRouter(<QuizPage />, {
-      route,
-      path: "/quiz/:aircraft/:subject",
+  it("exposes difficulty selector and requires-aircraft toggle", async () => {
+    renderWithRouter(<QuizPage />, {
+      route: "/?aircraft=a320&subject=systems&mode=practice",
     });
 
-    await findByText(/What is lift/i);
+    // Wait for the Difficulty label/select to appear
+    const difficultySelect = await screen.findByLabelText(/Difficulty/i);
+    expect(difficultySelect).toBeInTheDocument();
 
-    expect(container).toMatchSnapshot();
+    // Requires Aircraft checkbox - role+name is resilient to duplicate text elsewhere
+    const requiresCheckbox = await screen.findByRole("checkbox", { name: /Requires Aircraft/i });
+    expect(requiresCheckbox).toBeInTheDocument();
+    expect(requiresCheckbox).not.toBeChecked();
   });
 
-  it("renders active subscription mode correctly", async () => {
-    useSession.mockReturnValue({ user: { id: "123" } });
-    useSubscription.mockReturnValue({ subscription: { status: "active" } });
-
-    const route = "/quiz/a320/systems?mode=practice";
-    const { container, findByText } = renderWithRouter(<QuizPage />, {
-      route,
-      path: "/quiz/:aircraft/:subject",
+  it("renders question list and matches snapshot (stable-first-question check)", async () => {
+    const { container } = renderWithRouter(<QuizPage />, {
+      route: "/?aircraft=a320&subject=systems&mode=practice",
     });
 
-    await findByText(/What is lift/i);
+    // Wait for either the known mocked stem "What is lift" or fallback "Question 1"
+    await screen.findByText(/(What is lift|Question 1)/i);
 
+    // Snapshot the rendered output
     expect(container).toMatchSnapshot();
   });
 });

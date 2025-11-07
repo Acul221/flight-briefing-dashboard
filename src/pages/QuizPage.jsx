@@ -1,4 +1,4 @@
-// src/pages/QuizPage.jsx
+﻿// src/pages/QuizPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { fnAuthed } from "@/lib/apiClient";
@@ -10,9 +10,21 @@ const FUNCTIONS_BASE = (import.meta.env.VITE_FUNCTIONS_BASE || "/.netlify/functi
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const idxToLetter = (i) => ["A", "B", "C", "D"][i] ?? "-";
 
-/** Normalisasi soal → format UI */
+/** Normalisasi soal â†’ format UI */
 function normalizeQuestion(q) {
-  const answerIndex = ["A", "B", "C", "D"].indexOf(String(q.answer_key || "A").toUpperCase());
+  const stem = String(q?.stem ?? q?.question_text ?? q?.question ?? q?.text ?? "");
+  const answerKeyRaw =
+    q?.answer_key ??
+    q?.answerKey ??
+    q?.correct_answer ??
+    q?.correctAnswer ??
+    q?.correct_index ??
+    q?.correctIndex ??
+    0;
+  const answerIndex =
+    typeof answerKeyRaw === "number"
+      ? answerKeyRaw
+      : ["A", "B", "C", "D"].indexOf(String(answerKeyRaw || "A").toUpperCase());
   const arr4 = (arr, fill = null) => {
     const v = Array.isArray(arr) ? [...arr] : [];
     while (v.length < 4) v.push(fill);
@@ -25,15 +37,19 @@ function normalizeQuestion(q) {
   return {
     id: q.id,
     legacy_id: q.legacy_id || null,
-    question: q.question_text || "",
-    questionImage: q.question_image_url || null,
+    question: stem,
+    questionImage: q.question_image_url || q.question_image || q.questionImage || null,
     choices: arr4((choicesArr || []).map((c) => c ?? ""), ""),
-    choiceImages: arr4(q.choice_images, null),
-    explanations: arr4(q.explanations, ""),
-    correctIndex: (answerIndex >= 0 && answerIndex <= 3) ? answerIndex : 0,
-    tags: Array.isArray(q.tags) ? q.tags : [],
-    difficulty: q.difficulty || null,
-    category_path: Array.isArray(q.category_path) ? q.category_path : null,
+    choiceImages: arr4(q.choice_images || q.choiceImages, null),
+    explanations: arr4(q.explanations || q.explanation_list, ""),
+    correctIndex: Number.isInteger(answerIndex) && answerIndex >= 0 && answerIndex <= 3 ? answerIndex : 0,
+    tags: Array.isArray(q.tags) ? q.tags : Array.isArray(q.tag_list) ? q.tag_list : [],
+    difficulty: q.difficulty || q.level || null,
+    category_path: Array.isArray(q.category_path)
+      ? q.category_path
+      : Array.isArray(q.categoryPath)
+      ? q.categoryPath
+      : null,
   };
 }
 
@@ -109,11 +125,14 @@ export default function QuizPage() {
   const [submitting, setSubmitting] = useState(false);
   /** Feedback instan (practice) */
   const [showExplain, setShowExplain] = useState(false);
+  /** Filter state */
+  const [difficulty, setDifficulty] = useState("");
+  const [requiresAircraft, setRequiresAircraft] = useState(false);
 
   // Ambil soal
   useEffect(() => {
-    let abort = new AbortController();
-    async function load() {
+    const abort = new AbortController();
+    const load = async () => {
       setLoading(true);
       setErr("");
       setShowExplain(false);
@@ -127,6 +146,8 @@ export default function QuizPage() {
         u.searchParams.set("limit", "20");
         if (parent) u.searchParams.set("aircraft", parent);
         u.searchParams.set("strict_aircraft", "0");
+        if (difficulty) u.searchParams.set("difficulty", difficulty);
+        if (requiresAircraft) u.searchParams.set("requires_aircraft", "true");
 
         const res = await fetch(u.toString().replace(window.location.origin, ""), {
           method: "GET",
@@ -149,11 +170,13 @@ export default function QuizPage() {
       } finally {
         setLoading(false);
       }
-    }
-    load();
-    return () => abort.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aircraft, subject]);
+    };
+    const timer = setTimeout(load, 250);
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, [aircraft, subject, categorySlug, subjectSlug, difficulty, requiresAircraft]);
 
   // Timer sederhana
   useEffect(() => {
@@ -163,6 +186,10 @@ export default function QuizPage() {
 
   const total = questions.length;
   const current = questions[currentIndex];
+  const difficultyLabel = difficulty
+    ? difficulty.charAt(0).toUpperCase() + difficulty.slice(1)
+    : "All";
+  const requiresAircraftLabel = requiresAircraft ? "Yes" : "No";
 
   function handleAnswer(idx) {
     if (!current) return;
@@ -258,7 +285,7 @@ export default function QuizPage() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="animate-pulse text-slate-500">Loading questions…</div>
+        <div className="animate-pulse text-slate-500">Loading questionsâ€¦</div>
       </div>
     );
   }
@@ -287,11 +314,43 @@ export default function QuizPage() {
       {/* Header */}
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm text-slate-500">
-          Aircraft: <span className="font-medium">{aircraft || "-"}</span> &nbsp;•&nbsp; Subject:{" "}
-          <span className="font-medium">{subject || "-"}</span> &nbsp;•&nbsp; Mode:{" "}
+          Aircraft: <span className="font-medium">{aircraft || "-"}</span> - Subject:{" "}
+          <span className="font-medium">{subject || "-"}</span> - Mode:{" "}
           <span className="font-medium capitalize">{mode}</span>
         </div>
-        <div className="text-sm tabular-nums text-slate-600">⏱ {durationText}</div>
+        <div className="text-sm tabular-nums text-slate-600">Time: {durationText}</div>
+      </div>
+
+      {/* Filter panel */}
+      <div className="flex flex-wrap gap-4 items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-gray-600 dark:text-gray-300" htmlFor="quiz-filter-difficulty">
+            Difficulty
+          </label>
+          <select
+            id="quiz-filter-difficulty"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value)}
+            className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm"
+          >
+            <option value="">All</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <input
+            type="checkbox"
+            checked={requiresAircraft}
+            onChange={(e) => setRequiresAircraft(e.target.checked)}
+            className="w-4 h-4 accent-sky-600"
+          />
+          Requires Aircraft
+        </label>
+      </div>
+      <div className="mt-2 text-sm italic text-gray-500 dark:text-gray-400">
+        Showing: {difficultyLabel} questions, Requires Aircraft: {requiresAircraftLabel}
       </div>
 
       {/* Progress */}
@@ -332,7 +391,7 @@ export default function QuizPage() {
                     : "bg-rose-50 text-rose-700 border-rose-200",
                 ].join(" ")}
               >
-                {isCorrect ? "✓ Jawaban benar" : `✗ Jawaban salah (Kunci: ${idxToLetter(current.correctIndex)})`}
+                {isCorrect ? "âœ“ Jawaban benar" : `âœ— Jawaban salah (Kunci: ${idxToLetter(current.correctIndex)})`}
               </div>
 
               {/* Toggle Explanation */}
@@ -366,7 +425,7 @@ export default function QuizPage() {
               flags[currentIndex] ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-white border-slate-200 text-slate-700",
             ].join(" ")}
           >
-            {flags[currentIndex] ? "★ Flagged" : "☆ Flag"}
+            {flags[currentIndex] ? "Flagged" : "Flag"}
           </button>
           <button
             type="button"
@@ -388,7 +447,7 @@ export default function QuizPage() {
             disabled={currentIndex === 0}
             className="px-3 py-2 rounded bg-slate-200 text-slate-800 disabled:opacity-50"
           >
-            ← Prev
+            Prev
           </button>
           <button
             type="button"
@@ -396,7 +455,7 @@ export default function QuizPage() {
             disabled={currentIndex === total - 1}
             className="px-3 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
           >
-            Next →
+            Next Question
           </button>
           <button
             type="button"
@@ -404,7 +463,7 @@ export default function QuizPage() {
             disabled={submitting}
             className="ml-2 px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {submitting ? "Submitting…" : "Finish & Submit"}
+            {submitting ? "Submitting..." : "Finish & Review"}
           </button>
         </div>
       </div>
@@ -423,3 +482,14 @@ export default function QuizPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

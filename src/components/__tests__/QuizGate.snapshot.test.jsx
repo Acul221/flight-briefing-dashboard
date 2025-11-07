@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render } from "@/tests/test-utils";
 import { vi } from "vitest";
 import QuizGate from "../QuizGate";
 

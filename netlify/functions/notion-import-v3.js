@@ -44,6 +44,7 @@ const P = {
 
   CAT_ROOT: "Category Root",
   CAT_PATH: "Category Path",
+  CAT_SLUGS: "Category Slugs",
   TAGS: "Tags",
 
   LEGACY_ID: "Legacy ID",
@@ -70,8 +71,100 @@ function composePath({ root, domain, subject, subcat, ata }) {
   return `${root || "General"} > ${mid}${subcat ? " > " + subcat : ""}`;
 }
 
+function parseStringList(raw) {
+  if (raw === undefined || raw === null) {
+    return { values: [], hadInput: false, invalid: false };
+  }
+
+  const result = { values: [], hadInput: false, invalid: false };
+  const push = (value) => {
+    const v = String(value ?? "").trim();
+    if (v) {
+      result.values.push(v);
+    } else if (value !== undefined && value !== null) {
+      result.invalid = true;
+    }
+  };
+  const handleArray = (arr) => {
+    if (!Array.isArray(arr)) return false;
+    if (arr.length) result.hadInput = true;
+    for (const item of arr) {
+      if (typeof item === "string") {
+        push(item);
+      } else if (item && typeof item === "object") {
+        if (typeof item.plain_text === "string") {
+          push(item.plain_text);
+        } else if (typeof item.content === "string") {
+          push(item.content);
+        } else if (typeof item.name === "string") {
+          push(item.name);
+        } else if (typeof item.text === "string") {
+          push(item.text);
+        } else if (Array.isArray(item)) {
+          handleArray(item);
+        } else if (item.type && item[item.type]) {
+          const nested = item[item.type];
+          if (typeof nested === "string") {
+            push(nested);
+          } else if (nested && typeof nested === "object" && typeof nested.plain_text === "string") {
+            push(nested.plain_text);
+          } else {
+            result.invalid = true;
+          }
+        } else {
+          result.invalid = true;
+        }
+      } else if (item !== undefined && item !== null) {
+        result.invalid = true;
+      }
+    }
+    return true;
+  };
+
+  if (handleArray(raw)) return result;
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.length) result.hadInput = true;
+    if (!trimmed.length) return result;
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const nested = parseStringList(parsed);
+        nested.hadInput = true;
+        return nested;
+      } catch {
+        return { values: [], hadInput: true, invalid: true };
+      }
+    }
+    const delim = [",", ">", "/", "|"].find((d) => trimmed.includes(d));
+    if (delim) {
+      trimmed.split(delim).forEach(push);
+    } else {
+      push(trimmed);
+    }
+    return result;
+  }
+
+  if (typeof raw === "object") {
+    if (raw.multi_select) return parseStringList(raw.multi_select);
+    if (raw.rich_text) return parseStringList(raw.rich_text);
+    if (raw.title) return parseStringList(raw.title);
+    if (raw.results) return parseStringList(raw.results);
+    if (typeof raw.name === "string") {
+      result.hadInput = true;
+      push(raw.name);
+      return result;
+    }
+    return { values: [], hadInput: true, invalid: true };
+  }
+
+  return { values: [], hadInput: true, invalid: true };
+}
+
 /** Page → payload */
 function mapPage(p) {
+  const pageId = p.id;
   const pr = p.properties || {};
   const g = (k) => pr[k];
 
@@ -125,8 +218,33 @@ function mapPage(p) {
   if (!choices.every(x => x && x.trim().length)) problems.push("choices_incomplete");
   if (!["A", "B", "C", "D"].includes(answer_key)) problems.push("invalid_answer_key");
 
-  const category_path  = cpath.split(">").map(s => s.trim()).filter(Boolean);
-  const category_slugs = category_path.map(s => slug(s));
+  const pathParsed = parseStringList(g(P.CAT_PATH));
+  let category_path = Array.isArray(pathParsed.values) && pathParsed.values.length
+    ? pathParsed.values
+    : parseStringList(cpath).values;
+  if (!Array.isArray(category_path)) category_path = [];
+  category_path = category_path.map((s) => String(s).trim()).filter(Boolean);
+  if (!category_path.length) {
+    category_path = parseStringList(composePath({ root, domain, subject, subcat, ata })).values;
+    category_path = Array.isArray(category_path) ? category_path.map((s) => String(s).trim()).filter(Boolean) : [];
+  }
+
+  const catSlugsProp = g(P.CAT_SLUGS);
+  const slugsParsed = parseStringList(catSlugsProp);
+  let category_slugs = Array.isArray(slugsParsed.values)
+    ? slugsParsed.values.map((s) => slug(s)).filter(Boolean)
+    : [];
+  if (!category_slugs.length) {
+    category_slugs = category_path.map((s) => slug(s)).filter(Boolean);
+  }
+  if (!Array.isArray(category_slugs)) category_slugs = [];
+  if (!category_path.length && category_slugs.length) {
+    category_path = [...category_slugs];
+  }
+  const conversionFailed = (slugsParsed.hadInput && !category_slugs.length) || slugsParsed.invalid;
+  if (conversionFailed) {
+    console.warn(`[WARN] Invalid category_slugs for ${pageId}:`, catSlugsProp);
+  }
 
   const payload = {
     question_text,
@@ -141,6 +259,7 @@ function mapPage(p) {
     aircraft: aircraft || null,
     category_path,
     category_slugs,
+    category_path_json: JSON.stringify(category_slugs),
     status,
     legacy_id: legacy, // null untuk soal baru
     meta: {
@@ -215,6 +334,12 @@ exports.handler = async (event) => {
         if (imported >= limit) break;
 
         const { payload, problems } = mapPage(page);
+        if (payload.question_text && Array.isArray(payload.category_slugs) && payload.category_slugs.length === 0) {
+          const preview = payload.question_text.length > 40
+            ? `${payload.question_text.slice(0, 40)}...`
+            : payload.question_text;
+          console.log(`[SKIP] No valid category slugs for ${page.id} (${preview})`);
+        }
 
         if (problems.length) {
           results.push({ id: page.id, status: "skip", problems });

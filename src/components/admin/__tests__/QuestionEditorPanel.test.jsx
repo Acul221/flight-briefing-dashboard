@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@/tests/test-utils";
 import QuestionEditorPanel from "@/components/admin/QuestionEditorPanel";
 
 vi.mock("@/components/admin/CategoryManagerPanel", () => ({
@@ -108,7 +108,8 @@ describe("QuestionEditorPanel", () => {
     const publishButton = screen.getByRole("button", { name: /publish/i });
     expect(publishButton).not.toBeDisabled();
 
-    fireEvent.click(screen.getByLabelText(/requires aircraft before publish/i));
+    const requiresCheckbox = screen.getByRole("checkbox", { name: /requires aircraft before publish/i });
+    fireEvent.click(requiresCheckbox);
     expect(publishButton).toBeDisabled();
     const aircraftError = screen.getByText(/list at least one aircraft/i);
     expect(aircraftError).toBeInTheDocument();
@@ -138,3 +139,4 @@ describe("QuestionEditorPanel", () => {
     );
   });
 });
+

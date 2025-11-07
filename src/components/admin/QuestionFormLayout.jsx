@@ -1,17 +1,20 @@
 // src/components/admin/QuestionFormLayout.jsx
+// Sprint 1 admin update: normalization helpers + simulated publish flow.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadImage } from "@/utils/uploadImage";
+import { buildNormalizedQuestion, validateNormalizedQuestion } from "@/lib/questionNormalization";
 
 export default function QuestionFormLayout({
-  form,
-  onChange,
-  onSubmit,
-  categoriesTree,              // [{id,label,slug,requires_aircraft,pro_only,children:[...]}]
+  form = {},
+  onChange = () => {},
+  onSubmit = () => {},
+  categoriesTree = [],              // [{id,label,slug,requires_aircraft,pro_only,children:[...]}]
   saving = false,
   requiresAircraft = false,    // fallback flag dari parent (opsional)
+  onNormalizedChange,
 }) {
   /* ---------- helpers ---------- */
-  const ensureLen4 = (arrLike, filler = null) => {
+  const ensureLen4 = (arrLike, filler = "") => {
     const a = Array.isArray(arrLike) ? arrLike.slice(0, 4) : [];
     while (a.length < 4) a.push(filler);
     return a;
@@ -100,7 +103,21 @@ export default function QuestionFormLayout({
     }
   };
 
-  const disabled = saving || (mustAircraft && !String(form.aircraft || "").trim());
+  const normalizedQuestion = useMemo(
+    () => buildNormalizedQuestion({ ...form, requires_aircraft: mustAircraft }),
+    [form, mustAircraft]
+  );
+  const validation = useMemo(
+    () => validateNormalizedQuestion(normalizedQuestion),
+    [normalizedQuestion]
+  );
+  const validationErrors = validation.errors || {};
+
+  useEffect(() => {
+    onNormalizedChange?.(normalizedQuestion, validation);
+  }, [normalizedQuestion, validation, onNormalizedChange]);
+
+  const disabled = saving || !validation.valid;
 
   /* ---------- render ---------- */
   return (
@@ -108,7 +125,7 @@ export default function QuestionFormLayout({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit();
+        onSubmit(normalizedQuestion);
       }}
     >
       {upMsg && <div className="alert alert-info">{upMsg}</div>}
@@ -129,9 +146,13 @@ export default function QuestionFormLayout({
         <div>
           <label className="label">Category</label>
           <select
-            className="select select-bordered w-full"
+            className={`select select-bordered w-full ${
+              validationErrors.category ? "select-error border-error" : ""
+            }`}
             value={form.category || ""}
             onChange={(e) => onChange("category", e.target.value)}
+            aria-invalid={validationErrors.category ? "true" : "false"}
+            aria-describedby={validationErrors.category ? "category-error" : undefined}
           >
             <option value="">— select —</option>
             {parents.map((p) => (
@@ -148,6 +169,11 @@ export default function QuestionFormLayout({
               if (v) onChange("category", v);
             }}
           />
+          {validationErrors.category && (
+            <p id="category-error" className="mt-1 text-sm text-error">
+              {validationErrors.category}
+            </p>
+          )}
         </div>
 
         <div>
@@ -180,11 +206,20 @@ export default function QuestionFormLayout({
       <div>
         <label className="label">Question</label>
         <textarea
-          className="textarea textarea-bordered w-full"
+          className={`textarea textarea-bordered w-full ${
+            validationErrors.question ? "border-error focus:border-error" : ""
+          }`}
           rows={4}
           value={form.question || ""}
           onChange={(e) => onChange("question", e.target.value)}
+          aria-invalid={validationErrors.question ? "true" : "false"}
+          aria-describedby={validationErrors.question ? "question-error" : undefined}
         />
+        {validationErrors.question && (
+          <p id="question-error" className="mt-1 text-sm text-error">
+            {validationErrors.question}
+          </p>
+        )}
       </div>
 
       {/* Question Image uploader */}
@@ -230,6 +265,7 @@ export default function QuestionFormLayout({
       <div className="grid grid-cols-1 gap-3">
         {[0, 1, 2, 3].map((i) => {
           const L = String.fromCharCode(65 + i);
+          const choiceError = validationErrors[`choices.${i}`];
           return (
             <div key={i} className="rounded border p-3">
               <div className="flex items-center justify-between">
@@ -241,17 +277,27 @@ export default function QuestionFormLayout({
                     className="radio"
                     checked={form.correctIndex === i}
                     onChange={() => onChange("correctIndex", i)}
+                    aria-invalid={validationErrors.correctIndex ? "true" : "false"}
                   />
                   Correct
                 </label>
               </div>
 
               <input
-                className="input input-bordered w-full"
+                className={`input input-bordered w-full ${
+                  choiceError ? "border-error focus:border-error" : ""
+                }`}
                 placeholder={`Answer ${L}`}
                 value={answers[i] || ""}
                 onChange={(e) => setArrayItem("answers", i, e.target.value)}
+                aria-invalid={choiceError ? "true" : "false"}
+                aria-describedby={choiceError ? `choice-${i}-error` : undefined}
               />
+              {choiceError && (
+                <p id={`choice-${i}-error`} className="mt-1 text-sm text-error">
+                  {choiceError}
+                </p>
+              )}
 
               <textarea
                 className="textarea textarea-bordered w-full mt-2"
@@ -305,6 +351,9 @@ export default function QuestionFormLayout({
             </div>
           );
         })}
+        {validationErrors.correctIndex && (
+          <p className="text-sm text-error">{validationErrors.correctIndex}</p>
+        )}
       </div>
 
       {/* Meta (Status + Level + Source) */}
@@ -361,20 +410,35 @@ export default function QuestionFormLayout({
             Aircraft {mustAircraft ? "(required)" : "(optional)"}
           </label>
           <input
-            className="input input-bordered w-full"
+            className={`input input-bordered w-full ${
+              validationErrors.aircraft ? "border-error focus:border-error" : ""
+            }`}
             placeholder="A320"
             value={form.aircraft || ""}
             onChange={(e) => onChange("aircraft", e.target.value)}
+            aria-invalid={validationErrors.aircraft ? "true" : "false"}
+            aria-describedby={validationErrors.aircraft ? "aircraft-error" : undefined}
           />
-          {mustAircraft && !String(form.aircraft || "").trim() && (
-            <div className="mt-2 alert alert-warning text-sm">
-              This category requires an Aircraft value.
-            </div>
+          {validationErrors.aircraft && (
+            <p id="aircraft-error" className="mt-1 text-sm text-error">
+              {validationErrors.aircraft}
+            </p>
           )}
         </div>
       </div>
 
-      <button className={`btn btn-success w-full ${disabled ? "btn-disabled" : ""}`}>
+      {!validation.valid && (
+        <div className="alert alert-warning text-sm" role="alert">
+          Fix {Object.keys(validationErrors).length} required field
+          {Object.keys(validationErrors).length === 1 ? "" : "s"} before publishing.
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={disabled}
+        className={`btn btn-success w-full ${disabled ? "btn-disabled" : ""}`}
+      >
         {saving ? "Saving..." : "Save Question"}
       </button>
     </form>

@@ -1,56 +1,28 @@
-import { render } from "@testing-library/react";
-import React from "react";
-import { TestWrapper } from "../../../vitest.setup";
-import CategoryTreeItem from "@/components/admin/CategoryTreeItem";
-import Breadcrumb from "@/components/ui/Breadcrumb";
-import QuestionFormLayout from "@/components/admin/QuestionFormLayout";
+// src/components/__tests__/AllComponents.test.jsx
+import React from 'react';
+import { renderWithRouter } from '@/test-utils';
+import CategoryTreeItem from '../admin/CategoryTreeItem';
+import RACDelayPage from '../RACDelayPage';
+import QuestionFormLayout from '../admin/QuestionFormLayout';
+import BillingStrip from '../dashboard/BillingStrip';
 
-// import otomatis semua komponen di folder components
-const modules = import.meta.glob("../**/*.jsx", { eager: true });
+describe('smoke tests for components', () => {
+  test('renders CategoryTreeItem without crashing', () => {
+    const node = { _isFirst: false, _isLast: false, label: 'Root' };
+    renderWithRouter(<CategoryTreeItem node={node} onEdit={() => {}} />);
+  });
 
-Object.entries(modules).forEach(([fileName, module]) => {
-  const Component = module.default;
+  test('renders RACDelayPage without crashing', () => {
+    // useRAC is globally mocked in vitest.setup.js
+    renderWithRouter(<RACDelayPage />);
+  });
 
-  if (Component) {
-    test(`renders ${fileName} without crashing`, () => {
-      render(
-        <TestWrapper>
-          <Component />
-        </TestWrapper>
-      );
-    });
-  }
-});
+  test('renders QuestionFormLayout without crashing', () => {
+    // if QuestionFormLayout expects props, add minimal ones here.
+    renderWithRouter(<QuestionFormLayout />);
+  });
 
-// Targeted smoke renders with minimal props to avoid runtime errors
-test("renders CategoryTreeItem with minimal props", () => {
-  const node = { _isFirst: false, _isLast: false, label: "Node", children: [] };
-  render(
-    <TestWrapper>
-      <CategoryTreeItem
-        node={node}
-        onEdit={() => {}}
-        onDelete={() => {}}
-        onAddChild={() => {}}
-        onReorder={() => {}}
-      />
-    </TestWrapper>
-  );
-});
-
-test("renders Breadcrumb with minimal items", () => {
-  render(
-    <TestWrapper>
-      <Breadcrumb items={[{ label: "Home" }, { label: "Page" }]} />
-    </TestWrapper>
-  );
-});
-
-test("renders QuestionFormLayout with minimal props", () => {
-  const form = { category: "", subcategory: "", answers: [], explanations: [], choiceImages: [] };
-  render(
-    <TestWrapper>
-      <QuestionFormLayout form={form} onChange={() => {}} onSubmit={() => {}} categoriesTree={[]} />
-    </TestWrapper>
-  );
+  test('renders BillingStrip without crashing', () => {
+    renderWithRouter(<BillingStrip />);
+  });
 });

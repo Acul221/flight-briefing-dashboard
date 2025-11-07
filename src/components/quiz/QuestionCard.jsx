@@ -13,9 +13,9 @@ export default function QuestionCard({
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const stem = String((question?.stem ?? question?.question ?? question?.text ?? ""));
+  const stem = String(question?.stem ?? question?.question ?? question?.text ?? "");
   const isLong = stem.length > 220;
-  const stemShort = isLong && !expanded ? stem.slice(0, 220) + "…" : stem;
+  const stemShort = isLong && !expanded ? stem.slice(0, 220) + "..." : stem;
 
   // jaga-jaga normalisasi choices/explanations
   const choices = useMemo(
@@ -38,10 +38,8 @@ export default function QuestionCard({
         N°{String(index + 1).padStart(3, "0")} / {total} — ID: {question.legacy_id || question.id}
       </p>
 
-      <h3 className="font-semibold mb-2">
-        {stem?.trim() ? stem : `Question ${index + 1}`}
-      </h3>
-      {stem?.trim() && <p className="mb-3 leading-relaxed">{stem}</p>}
+      <h3 className="font-semibold mb-2">Question {index + 1}</h3>
+      {stem?.trim() && <p className="mb-3 leading-relaxed">{stemShort}</p>}
 
       {question.questionImage && (
         <img
@@ -121,3 +119,5 @@ QuestionCard.propTypes = {
   showExplanation: PropTypes.bool,
   isReview: PropTypes.bool,
 };
+
+
