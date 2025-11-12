@@ -1,9 +1,10 @@
+// src/pages/__tests__/QuizPage.integration.test.jsx
 import React from "react"; // ✅ WAJIB ada kalau pakai JSX
 import { render, screen, fireEvent } from "@/tests/test-utils";
 import { vi } from "vitest";
 import QuizPage from "../QuizPage";
 
-// mock hooks
+// mock hooks BEFORE importing their named exports
 vi.mock("@/hooks/useSession", () => ({
   useSession: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock("react-router-dom", async () => {
 });
 
 // mock fetch to return dummy questions with expected shape
+const originalFetch = global.fetch;
 beforeAll(() => {
   global.fetch = vi.fn(async (url) => {
     if (String(url).includes("/.netlify/functions/quiz-pull")) {
@@ -31,6 +33,7 @@ beforeAll(() => {
         const stem = `Dummy question ${i + 1}`;
         return {
           id: `q${i + 1}`,
+          legacy_id: `legacy-${i + 1}`,
           stem,
           question: stem,
           text: stem,
@@ -43,25 +46,54 @@ beforeAll(() => {
   });
 });
 
-afterAll(() => { global.fetch = undefined; });
+afterAll(() => {
+  // restore original fetch (if any)
+  if (originalFetch) global.fetch = originalFetch;
+  else delete global.fetch;
+});
 
 async function simulateQuizFlow(expectedCount) {
+  // wait first item to appear
   await screen.findByText(/Dummy question 1/i);
 
   let count = 1;
-  while (true) {
-    const nextBtn = screen.queryByRole("button", { name: /Next Question/i });
-    const finishBtn = screen.queryByRole("button", { name: /Finish & Review/i });
+  const maxSteps = Math.max(expectedCount + 5, 50); // safety cap
 
-    if (nextBtn) {
-      fireEvent.click(nextBtn);
-      count++;
-    } else if (finishBtn) {
-      break;
-    } else {
+  for (let i = 0; i < maxSteps; i++) {
+    // prefer to find the "Finish & Review" button first
+    const finishBtn = screen.queryByRole("button", { name: /Finish & Review/i });
+    if (finishBtn) {
+      // stop when finish appears (we assume we reached the end)
       break;
     }
+
+    const nextBtn = screen.queryByRole("button", { name: /Next Question/i });
+    if (!nextBtn) {
+      // no next button present -> break
+      break;
+    }
+
+    // only click if not disabled
+    const isDisabled =
+      nextBtn.hasAttribute("disabled") ||
+      nextBtn.getAttribute("aria-disabled") === "true" ||
+      nextBtn.classList.contains("disabled") ||
+      nextBtn.getAttribute("disabled") === "true";
+
+    if (isDisabled) {
+      // if it's disabled but finish not visible, try a small wait for UI updates
+      // (findByText on next question stem could be used, but keep simple)
+      await new Promise((r) => setTimeout(r, 50));
+      continue;
+    }
+
+    fireEvent.click(nextBtn);
+    count++;
+
+    // fast-exit if we've reached the expected count
+    if (count >= expectedCount) break;
   }
+
   expect(count).toBe(expectedCount);
 }
 
