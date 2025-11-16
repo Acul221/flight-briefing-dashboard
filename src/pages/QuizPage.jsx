@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { fnAuthed } from "@/lib/apiClient";
 import QuestionCard from "@/components/quiz/QuestionCard";
+import { useSession } from "@/hooks/useSession";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const FUNCTIONS_BASE = (import.meta.env.VITE_FUNCTIONS_BASE || "/.netlify/functions").replace(/\/+$/, "");
 
@@ -10,7 +12,7 @@ const FUNCTIONS_BASE = (import.meta.env.VITE_FUNCTIONS_BASE || "/.netlify/functi
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const idxToLetter = (i) => ["A", "B", "C", "D"][i] ?? "-";
 
-/** Normalisasi soal â†’ format UI */
+/** Normalisasi soal → format UI */
 function normalizeQuestion(q) {
   const stem = String(q?.stem ?? q?.question_text ?? q?.question ?? q?.text ?? "");
   const answerKeyRaw =
@@ -53,7 +55,7 @@ function normalizeQuestion(q) {
   };
 }
 
-/** Progress bar komponen kecil */
+/** Progress bar component */
 function ProgressBar({ value, total }) {
   const pct = total ? clamp(Math.round((value / total) * 100), 0, 100) : 0;
   return (
@@ -103,11 +105,17 @@ export default function QuizPage() {
   const [search] = useSearchParams();
   const mode = (search.get("mode") || "practice").toLowerCase() === "exam" ? "exam" : "practice";
 
-  const [questions, setQuestions] = useState([]);
+  // User & subscription
+  const session = useSession();
+  const subRes = useSubscription();
+  const subscription = subRes?.subscription ?? null;
+  const isActiveSubscriber = !!(subscription && subscription.status === "active");
+
+  const [fetchedQuestions, setFetchedQuestions] = useState([]); // raw normalized from server
+  const [questions, setQuestions] = useState([]); // visible (gated)
+  const [fullCount, setFullCount] = useState(0); // server total
   const [currentIndex, setCurrentIndex] = useState(0);
-  /** answersById: { [questionId]: 0..3 } */
   const [answersById, setAnswersById] = useState({});
-  /** answersByIndex: array ringkas utk navigator */
   const answers = useMemo(() => {
     const arr = Array.from({ length: questions.length }).map(() => null);
     questions.forEach((q, i) => {
@@ -115,21 +123,16 @@ export default function QuizPage() {
     });
     return arr;
   }, [questions, answersById]);
-  /** Flag per index */
   const [flags, setFlags] = useState({});
-  /** Timer */
   const [durationSec, setDurationSec] = useState(0);
-  /** UI state */
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  /** Feedback instan (practice) */
   const [showExplain, setShowExplain] = useState(false);
-  /** Filter state */
   const [difficulty, setDifficulty] = useState("");
   const [requiresAircraft, setRequiresAircraft] = useState(false);
 
-  // Ambil soal
+  // Fetch questions
   useEffect(() => {
     const abort = new AbortController();
     const load = async () => {
@@ -143,7 +146,7 @@ export default function QuizPage() {
         if (child) u.searchParams.set("category_slug", child);
         if (parent) u.searchParams.set("parent_slug", parent);
         u.searchParams.set("include_descendants", "1");
-        u.searchParams.set("limit", "20");
+        u.searchParams.set("limit", "50"); // request many, gating done client-side
         if (parent) u.searchParams.set("aircraft", parent);
         u.searchParams.set("strict_aircraft", "0");
         if (difficulty) u.searchParams.set("difficulty", difficulty);
@@ -158,7 +161,18 @@ export default function QuizPage() {
         const json = await res.json();
         const items = Array.isArray(json?.items) ? json.items : [];
         const normalized = items.map(normalizeQuestion);
-        setQuestions(normalized);
+
+        // Server total (if provided) else derived from items
+        const serverTotal = Number.isInteger(json?.total) ? json.total : (json?.total_count ?? normalized.length);
+        setFullCount(Number.isFinite(serverTotal) ? serverTotal : normalized.length);
+        setFetchedQuestions(normalized);
+
+        // Gating policy:
+        // - Active subscriber: see all fetched items
+        // - Otherwise (guest or inactive): show only first 10 (or fewer if less fetched)
+        const visibleCap = isActiveSubscriber ? normalized.length : 10;
+        setQuestions(normalized.slice(0, Math.min(normalized.length, visibleCap)));
+
         setCurrentIndex(0);
         setAnswersById({});
         setFlags({});
@@ -171,30 +185,27 @@ export default function QuizPage() {
         setLoading(false);
       }
     };
-    const timer = setTimeout(load, 250);
+    const timer = setTimeout(load, 150);
     return () => {
       clearTimeout(timer);
       abort.abort();
     };
-  }, [aircraft, subject, categorySlug, subjectSlug, difficulty, requiresAircraft]);
+    // NOTE: include isActiveSubscriber & session so gating updates when auth changes
+  }, [aircraft, subject, categorySlug, subjectSlug, difficulty, requiresAircraft, isActiveSubscriber, session]);
 
-  // Timer sederhana
+  // Timer
   useEffect(() => {
     const t = setInterval(() => setDurationSec((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const total = questions.length;
+  const visibleCount = questions.length;
+  const total = fullCount || visibleCount; // denominator for progress display
   const current = questions[currentIndex];
-  const difficultyLabel = difficulty
-    ? difficulty.charAt(0).toUpperCase() + difficulty.slice(1)
-    : "All";
-  const requiresAircraftLabel = requiresAircraft ? "Yes" : "No";
 
   function handleAnswer(idx) {
     if (!current) return;
     setAnswersById((prev) => ({ ...prev, [current.id]: idx }));
-    // Reset explanation toggle per soal baru
     setShowExplain(false);
   }
 
@@ -203,15 +214,16 @@ export default function QuizPage() {
   }
 
   function gotoPrev() {
-    setCurrentIndex((i) => clamp(i - 1, 0, total - 1));
+    setCurrentIndex((i) => clamp(i - 1, 0, Math.max(0, visibleCount - 1)));
     setShowExplain(false);
   }
   function gotoNext() {
-    setCurrentIndex((i) => clamp(i + 1, 0, total - 1));
+    setCurrentIndex((i) => clamp(i + 1, 0, Math.max(0, visibleCount - 1)));
     setShowExplain(false);
   }
   function jumpTo(i) {
-    setCurrentIndex(clamp(i, 0, total - 1));
+    const target = clamp(i, 0, Math.max(0, visibleCount - 1));
+    setCurrentIndex(target);
     setShowExplain(false);
   }
 
@@ -221,8 +233,8 @@ export default function QuizPage() {
 
   const progressText = useMemo(() => {
     if (!total) return "0 / 0";
-    return `${currentIndex + 1} / ${total}`;
-  }, [currentIndex, total]);
+    return `${Math.min(currentIndex + 1, visibleCount)} / ${total}`; // show visible position / server total
+  }, [currentIndex, visibleCount, total]);
 
   const durationText = useMemo(() => {
     const m = Math.floor(durationSec / 60);
@@ -232,7 +244,6 @@ export default function QuizPage() {
 
   async function onFinish() {
     if (!questions.length || submitting) return;
-    // Kumpulkan jawaban (kalau mau wajib semua, hilangkan filter di bawah)
     const items = questions
       .map((q) => ({
         question_id: q.id,
@@ -256,7 +267,7 @@ export default function QuizPage() {
       category_root_slug: (categorySlug || aircraft) || null,
       category_slug: (subjectSlug || subject) || null,
       include_descendants: true,
-      mode, // practice | exam
+      mode,
       duration_sec: durationSec,
       meta: { appVersion: "1.0.0", device: "web" },
       items,
@@ -271,7 +282,6 @@ export default function QuizPage() {
       if (res?.attempt_id) {
         navigate(`/quiz/result/${res.attempt_id}`);
       } else {
-        // fallback (seharusnya ada attempt_id)
         alert(`Score: ${res.correct_count}/${res.question_count} (${res.score}%)`);
       }
     } catch (e) {
@@ -285,7 +295,7 @@ export default function QuizPage() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="animate-pulse text-slate-500">Loading questionsâ€¦</div>
+        <div className="animate-pulse text-slate-500">Loading questions…</div>
       </div>
     );
   }
@@ -296,7 +306,7 @@ export default function QuizPage() {
       </div>
     );
   }
-  if (!total) {
+  if (!visibleCount) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="p-3 rounded bg-amber-50 text-amber-800 border border-amber-200">
@@ -321,7 +331,7 @@ export default function QuizPage() {
         <div className="text-sm tabular-nums text-slate-600">Time: {durationText}</div>
       </div>
 
-      {/* Filter panel */}
+      {/* Filter */}
       <div className="flex flex-wrap gap-4 items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <label className="text-sm text-gray-600 dark:text-gray-300" htmlFor="quiz-filter-difficulty">
@@ -350,16 +360,41 @@ export default function QuizPage() {
         </label>
       </div>
       <div className="mt-2 text-sm italic text-gray-500 dark:text-gray-400">
-        Showing: {difficultyLabel} questions, Requires Aircraft: {requiresAircraftLabel}
+        Showing: {difficulty ? difficulty.charAt(0).toUpperCase() + difficulty.slice(1) : "All"} questions, Requires Aircraft: {requiresAircraft ? "Yes" : "No"}
       </div>
 
       {/* Progress */}
       <div className="mb-2">
         <ProgressBar value={currentIndex + 1} total={total} />
         <div className="mt-1 text-right text-xs text-slate-500">{progressText}</div>
+
+        {/* Gating CTA (appear when there are locked questions) */}
+        {fullCount > visibleCount && (
+          <div className="mt-3">
+            {!session && (
+              <div
+                role="status"
+                className="p-3 rounded bg-yellow-50 text-yellow-900 border border-yellow-200"
+                data-testid="cta-login"
+              >
+                Login to access more questions — <Link to="/login" className="underline">Login</Link>
+              </div>
+            )}
+
+            {session && !isActiveSubscriber && (
+              <div
+                role="status"
+                className="p-3 rounded bg-amber-50 text-amber-900 border border-amber-200"
+                data-testid="cta-upgrade"
+              >
+                Upgrade to unlock all questions — <Link to="/billing" className="underline">Upgrade</Link>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Kartu soal */}
+      {/* Question card */}
       {current && (
         <div
           className={[
@@ -380,7 +415,6 @@ export default function QuizPage() {
             onSelect={handleAnswer}
           />
 
-          {/* Feedback instan hanya di practice mode */}
           {mode === "practice" && isAnswered && (
             <div className="mt-3 text-sm">
               <div
@@ -391,10 +425,9 @@ export default function QuizPage() {
                     : "bg-rose-50 text-rose-700 border-rose-200",
                 ].join(" ")}
               >
-                {isCorrect ? "âœ“ Jawaban benar" : `âœ— Jawaban salah (Kunci: ${idxToLetter(current.correctIndex)})`}
+                {isCorrect ? "✓ Jawaban benar" : `✕ Jawaban salah (Kunci: ${idxToLetter(current.correctIndex)})`}
               </div>
 
-              {/* Toggle Explanation */}
               {current.explanations?.[current.correctIndex] && (
                 <button
                   onClick={() => setShowExplain((v) => !v)}
@@ -414,7 +447,7 @@ export default function QuizPage() {
         </div>
       )}
 
-      {/* Toolbar bawah */}
+      {/* Toolbar */}
       <div className="mt-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
@@ -452,7 +485,7 @@ export default function QuizPage() {
           <button
             type="button"
             onClick={gotoNext}
-            disabled={currentIndex === total - 1}
+            disabled={currentIndex === visibleCount - 1}
             className="px-3 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
           >
             Next Question
@@ -468,11 +501,11 @@ export default function QuizPage() {
         </div>
       </div>
 
-      {/* Navigator grid */}
+      {/* Navigator */}
       <div className="mt-4 p-3 rounded-2xl border border-slate-200 bg-white">
         <div className="mb-2 text-sm text-slate-500">Question Navigator</div>
         <Navigator
-          total={total}
+          total={visibleCount}
           currentIndex={currentIndex}
           answers={answers}
           flags={flags}
@@ -482,14 +515,3 @@ export default function QuizPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
