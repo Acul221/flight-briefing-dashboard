@@ -55,7 +55,7 @@ function normalizeQuestion(q) {
   };
 }
 
-/** Progress bar component */
+/** Progress bar komponen kecil */
 function ProgressBar({ value, total }) {
   const pct = total ? clamp(Math.round((value / total) * 100), 0, 100) : 0;
   return (
@@ -105,17 +105,16 @@ export default function QuizPage() {
   const [search] = useSearchParams();
   const mode = (search.get("mode") || "practice").toLowerCase() === "exam" ? "exam" : "practice";
 
-  // User & subscription
-  const session = useSession();
-  const subRes = useSubscription();
-  const subscription = subRes?.subscription ?? null;
-  const isActiveSubscriber = !!(subscription && subscription.status === "active");
+  const session = useSession(); // may be null for guests
+  const { subscription } = useSubscription() || {}; // tests mock this
 
-  const [fetchedQuestions, setFetchedQuestions] = useState([]); // raw normalized from server
-  const [questions, setQuestions] = useState([]); // visible (gated)
-  const [fullCount, setFullCount] = useState(0); // server total
+  const isActiveSubscriber = !!subscription && subscription.status === "active";
+
+  const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  /** answersById: { [questionId]: 0..3 } */
   const [answersById, setAnswersById] = useState({});
+  /** answersByIndex: array ringkas utk navigator */
   const answers = useMemo(() => {
     const arr = Array.from({ length: questions.length }).map(() => null);
     questions.forEach((q, i) => {
@@ -123,16 +122,21 @@ export default function QuizPage() {
     });
     return arr;
   }, [questions, answersById]);
+  /** Flag per index */
   const [flags, setFlags] = useState({});
+  /** Timer */
   const [durationSec, setDurationSec] = useState(0);
+  /** UI state */
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  /** Feedback instan (practice) */
   const [showExplain, setShowExplain] = useState(false);
+  /** Filter state */
   const [difficulty, setDifficulty] = useState("");
   const [requiresAircraft, setRequiresAircraft] = useState(false);
 
-  // Fetch questions
+  // Ambil soal
   useEffect(() => {
     const abort = new AbortController();
     const load = async () => {
@@ -142,11 +146,11 @@ export default function QuizPage() {
       try {
         const u = new URL(`${FUNCTIONS_BASE}/quiz-pull`, window.location.origin);
         const parent = categorySlug || aircraft || null;
-        const child  = subjectSlug || subject || null;
+        const child = subjectSlug || subject || null;
         if (child) u.searchParams.set("category_slug", child);
         if (parent) u.searchParams.set("parent_slug", parent);
         u.searchParams.set("include_descendants", "1");
-        u.searchParams.set("limit", "50"); // request many, gating done client-side
+        u.searchParams.set("limit", "50"); // keep high; gating handled client-side
         if (parent) u.searchParams.set("aircraft", parent);
         u.searchParams.set("strict_aircraft", "0");
         if (difficulty) u.searchParams.set("difficulty", difficulty);
@@ -161,18 +165,7 @@ export default function QuizPage() {
         const json = await res.json();
         const items = Array.isArray(json?.items) ? json.items : [];
         const normalized = items.map(normalizeQuestion);
-
-        // Server total (if provided) else derived from items
-        const serverTotal = Number.isInteger(json?.total) ? json.total : (json?.total_count ?? normalized.length);
-        setFullCount(Number.isFinite(serverTotal) ? serverTotal : normalized.length);
-        setFetchedQuestions(normalized);
-
-        // Gating policy:
-        // - Active subscriber: see all fetched items
-        // - Otherwise (guest or inactive): show only first 10 (or fewer if less fetched)
-        const visibleCap = isActiveSubscriber ? normalized.length : 10;
-        setQuestions(normalized.slice(0, Math.min(normalized.length, visibleCap)));
-
+        setQuestions(normalized);
         setCurrentIndex(0);
         setAnswersById({});
         setFlags({});
@@ -185,23 +178,34 @@ export default function QuizPage() {
         setLoading(false);
       }
     };
-    const timer = setTimeout(load, 150);
+    const timer = setTimeout(load, 250);
     return () => {
       clearTimeout(timer);
       abort.abort();
     };
-    // NOTE: include isActiveSubscriber & session so gating updates when auth changes
-  }, [aircraft, subject, categorySlug, subjectSlug, difficulty, requiresAircraft, isActiveSubscriber, session]);
+  }, [aircraft, subject, categorySlug, subjectSlug, difficulty, requiresAircraft]);
 
-  // Timer
+  // Timer sederhana
   useEffect(() => {
     const t = setInterval(() => setDurationSec((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const visibleCount = questions.length;
-  const total = fullCount || visibleCount; // denominator for progress display
-  const current = questions[currentIndex];
+  // === gating logic ===
+  const fullCount = questions.length;
+  const guestLimit = 10;
+  const visibleCount = isActiveSubscriber ? fullCount : Math.min(fullCount, guestLimit);
+  const displayedQuestions = useMemo(() => questions.slice(0, visibleCount), [questions, visibleCount]);
+  const totalVisible = displayedQuestions.length;
+
+  // Ensure currentIndex within visible range whenever visibleCount changes
+  useEffect(() => {
+    setCurrentIndex((i) => clamp(i, 0, Math.max(0, totalVisible - 1)));
+  }, [totalVisible]);
+
+  const current = displayedQuestions[currentIndex] ?? null;
+  const difficultyLabel = difficulty ? difficulty.charAt(0).toUpperCase() + difficulty.slice(1) : "All";
+  const requiresAircraftLabel = requiresAircraft ? "Yes" : "No";
 
   function handleAnswer(idx) {
     if (!current) return;
@@ -214,16 +218,15 @@ export default function QuizPage() {
   }
 
   function gotoPrev() {
-    setCurrentIndex((i) => clamp(i - 1, 0, Math.max(0, visibleCount - 1)));
+    setCurrentIndex((i) => clamp(i - 1, 0, totalVisible - 1));
     setShowExplain(false);
   }
   function gotoNext() {
-    setCurrentIndex((i) => clamp(i + 1, 0, Math.max(0, visibleCount - 1)));
+    setCurrentIndex((i) => clamp(i + 1, 0, totalVisible - 1));
     setShowExplain(false);
   }
   function jumpTo(i) {
-    const target = clamp(i, 0, Math.max(0, visibleCount - 1));
-    setCurrentIndex(target);
+    setCurrentIndex(clamp(i, 0, totalVisible - 1));
     setShowExplain(false);
   }
 
@@ -231,10 +234,9 @@ export default function QuizPage() {
   const isAnswered = Number.isInteger(selectedIdx);
   const isCorrect = isAnswered ? selectedIdx === current?.correctIndex : null;
 
-  const progressText = useMemo(() => {
-    if (!total) return "0 / 0";
-    return `${Math.min(currentIndex + 1, visibleCount)} / ${total}`; // show visible position / server total
-  }, [currentIndex, visibleCount, total]);
+  // Progress: show X / fullCount (X is current visible index or visibleCount when at end)
+  const progressValue = Math.min(currentIndex + 1, visibleCount);
+  const progressText = `${progressValue} / ${fullCount}`;
 
   const durationText = useMemo(() => {
     const m = Math.floor(durationSec / 60);
@@ -306,7 +308,7 @@ export default function QuizPage() {
       </div>
     );
   }
-  if (!visibleCount) {
+  if (!fullCount) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="p-3 rounded bg-amber-50 text-amber-800 border border-amber-200">
@@ -331,7 +333,7 @@ export default function QuizPage() {
         <div className="text-sm tabular-nums text-slate-600">Time: {durationText}</div>
       </div>
 
-      {/* Filter */}
+      {/* Filter panel */}
       <div className="flex flex-wrap gap-4 items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <label className="text-sm text-gray-600 dark:text-gray-300" htmlFor="quiz-filter-difficulty">
@@ -360,15 +362,15 @@ export default function QuizPage() {
         </label>
       </div>
       <div className="mt-2 text-sm italic text-gray-500 dark:text-gray-400">
-        Showing: {difficulty ? difficulty.charAt(0).toUpperCase() + difficulty.slice(1) : "All"} questions, Requires Aircraft: {requiresAircraft ? "Yes" : "No"}
+        Showing: {difficultyLabel} questions, Requires Aircraft: {requiresAircraftLabel}
       </div>
 
       {/* Progress */}
       <div className="mb-2">
-        <ProgressBar value={currentIndex + 1} total={total} />
+        <ProgressBar value={progressValue} total={fullCount} />
         <div className="mt-1 text-right text-xs text-slate-500">{progressText}</div>
 
-        {/* Gating CTA (appear when there are locked questions) */}
+        {/* CTA area (shows only if we are gating and user can't see full set) */}
         {fullCount > visibleCount && (
           <div className="mt-3">
             {!session && (
@@ -377,7 +379,10 @@ export default function QuizPage() {
                 className="p-3 rounded bg-yellow-50 text-yellow-900 border border-yellow-200"
                 data-testid="cta-login"
               >
-                Login to access more questions — <Link to="/login" className="underline">Login</Link>
+                Login to access more questions —{" "}
+                <Link to="/login" className="underline" aria-label="Sign in">
+                  Sign in
+                </Link>
               </div>
             )}
 
@@ -387,14 +392,17 @@ export default function QuizPage() {
                 className="p-3 rounded bg-amber-50 text-amber-900 border border-amber-200"
                 data-testid="cta-upgrade"
               >
-                Upgrade to unlock all questions — <Link to="/billing" className="underline">Upgrade</Link>
+                Upgrade to unlock all questions —{" "}
+                <Link to="/billing" className="underline" aria-label="Upgrade plan">
+                  Upgrade plan
+                </Link>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Question card */}
+      {/* Kartu soal */}
       {current && (
         <div
           className={[
@@ -410,11 +418,12 @@ export default function QuizPage() {
             key={current.id}
             question={current}
             index={currentIndex}
-            total={total}
+            total={totalVisible}
             selected={answersById[current.id]}
             onSelect={handleAnswer}
           />
 
+          {/* Feedback instan hanya di practice mode */}
           {mode === "practice" && isAnswered && (
             <div className="mt-3 text-sm">
               <div
@@ -425,9 +434,10 @@ export default function QuizPage() {
                     : "bg-rose-50 text-rose-700 border-rose-200",
                 ].join(" ")}
               >
-                {isCorrect ? "✓ Jawaban benar" : `✕ Jawaban salah (Kunci: ${idxToLetter(current.correctIndex)})`}
+                {isCorrect ? "✓ Jawaban benar" : `✗ Jawaban salah (Kunci: ${idxToLetter(current.correctIndex)})`}
               </div>
 
+              {/* Toggle Explanation */}
               {current.explanations?.[current.correctIndex] && (
                 <button
                   onClick={() => setShowExplain((v) => !v)}
@@ -447,7 +457,7 @@ export default function QuizPage() {
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar bawah */}
       <div className="mt-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
@@ -485,7 +495,7 @@ export default function QuizPage() {
           <button
             type="button"
             onClick={gotoNext}
-            disabled={currentIndex === visibleCount - 1}
+            disabled={currentIndex === totalVisible - 1}
             className="px-3 py-2 rounded bg-slate-800 text-white disabled:opacity-50"
           >
             Next Question
@@ -501,13 +511,13 @@ export default function QuizPage() {
         </div>
       </div>
 
-      {/* Navigator */}
+      {/* Navigator grid */}
       <div className="mt-4 p-3 rounded-2xl border border-slate-200 bg-white">
         <div className="mb-2 text-sm text-slate-500">Question Navigator</div>
         <Navigator
-          total={visibleCount}
+          total={totalVisible}
           currentIndex={currentIndex}
-          answers={answers}
+          answers={answers.slice(0, totalVisible)}
           flags={flags}
           onJump={jumpTo}
         />
