@@ -393,8 +393,8 @@ export default function QuizPage() {
                 data-testid="cta-upgrade"
               >
                 Upgrade to unlock all questions —{" "}
-                <Link to="/billing" className="underline" aria-label="Upgrade plan">
-                  Upgrade plan
+                <Link to="/billing" className="underline" aria-label="Open billing">
+                  Manage billing
                 </Link>
               </div>
             )}
