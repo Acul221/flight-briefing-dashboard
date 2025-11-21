@@ -1,1 +1,54 @@
-# (paste YAML above)
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    name: Node CI
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Show node & npm versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Run linter
+        run: npm run lint
+        # if you want linter errors to not fail CI, change to "continue-on-error: true"
+
+      - name: Run unit tests
+        env:
+          CI: true
+        run: npm run test
+
+      # Optional: Run Playwright tests only on PRs to develop/main (enable if browsers installed)
+      - name: Install Playwright browsers (only when PLAYWRIGHT env is true)
+        if: env.RUN_PLAYWRIGHT == 'true'
+        run: npx playwright install --with-deps
+
+      - name: Upload test report (if exists)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-results
+          path: test-results || vitest-output || playwright-report || ''
