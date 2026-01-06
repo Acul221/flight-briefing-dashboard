@@ -1,55 +1,68 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 
 export default function TimeDistanceCalculator() {
-  const [distance, setDistance] = useState('');
-  const [groundSpeed, setGroundSpeed] = useState('');
-  const [time, setTime] = useState('');
-  const [timeUnit, setTimeUnit] = useState('minutes');
-  const [showFormula, setShowFormula] = useState(false);
-
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('tdc-inputs'));
-    if (saved) {
-      setDistance(saved.distance || '');
-      setGroundSpeed(saved.groundSpeed || '');
-      setTime(saved.time || '');
-      setTimeUnit(saved.timeUnit || 'minutes');
+  const initial = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('tdc-inputs')) || {};
+    } catch {
+      return {};
     }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(
-      'tdc-inputs',
-      JSON.stringify({ distance, groundSpeed, time, timeUnit })
-    );
-  }, [distance, groundSpeed, time, timeUnit]);
-
-  const convertToHours = (value) => (timeUnit === 'minutes' ? value / 60 : value);
-  const convertToMinutes = (value) => (timeUnit === 'minutes' ? value : value * 60);
+  const [values, setValues] = useState({
+    distance: initial.distance || '',
+    groundSpeed: initial.groundSpeed || '',
+    time: initial.time || '',
+    timeUnit: initial.timeUnit || 'minutes',
+  });
+  const [showFormula, setShowFormula] = useState(false);
 
   useEffect(() => {
-    const d = parseFloat(distance);
-    const gs = parseFloat(groundSpeed);
-    const t = convertToHours(parseFloat(time));
-
-    if (!isNaN(d) && !isNaN(gs) && isNaN(t)) {
-      setTime((d / gs).toFixed(2));
-    } else if (!isNaN(d) && isNaN(gs) && !isNaN(t)) {
-      setGroundSpeed((d / t).toFixed(2));
-    } else if (isNaN(d) && !isNaN(gs) && !isNaN(t)) {
-      setDistance((gs * t).toFixed(2));
+    try {
+      localStorage.setItem('tdc-inputs', JSON.stringify(values));
+    } catch {
+      /* no-op */
     }
-  }, [distance, groundSpeed, time, timeUnit]);
+  }, [values]);
+
+  const convertToHours = useCallback(
+    (value, unit = values.timeUnit) => (unit === 'minutes' ? value / 60 : value),
+    [values.timeUnit]
+  );
+  const convertToMinutes = useCallback(
+    (value, unit = values.timeUnit) => (unit === 'minutes' ? value : value * 60),
+    [values.timeUnit]
+  );
+
+  const recalc = useCallback(
+    (next) => {
+      const d = parseFloat(next.distance);
+      const gs = parseFloat(next.groundSpeed);
+      const t = convertToHours(parseFloat(next.time), next.timeUnit);
+
+      if (!isNaN(d) && !isNaN(gs) && !next.time) {
+        next.time = (d / gs).toFixed(2);
+      } else if (!isNaN(d) && !next.groundSpeed && !isNaN(t)) {
+        next.groundSpeed = (d / t).toFixed(2);
+      } else if (!next.distance && !isNaN(gs) && !isNaN(t)) {
+        next.distance = (gs * t).toFixed(2);
+      }
+      return next;
+    },
+    [convertToHours]
+  );
+
+  const updateValues = (patch) => {
+    setValues((prev) => recalc({ ...prev, ...patch }));
+  };
 
   const handleClear = () => {
-    setDistance('');
-    setGroundSpeed('');
-    setTime('');
+    setValues({ distance: '', groundSpeed: '', time: '', timeUnit: 'minutes' });
     localStorage.removeItem('tdc-inputs');
   };
 
   const formattedTime = () => {
-    const t = parseFloat(time);
+    const t = parseFloat(values.time);
     if (isNaN(t)) return '-';
     const timeInHours = convertToHours(t);
     const timeInMinutes = convertToMinutes(t);
@@ -59,7 +72,7 @@ export default function TimeDistanceCalculator() {
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-2xl p-6 space-y-4">
       <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-        🧭 Time, Distance, and Ground Speed Calculator
+        dY- Time, Distance, and Ground Speed Calculator
       </h2>
 
       <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -80,8 +93,8 @@ export default function TimeDistanceCalculator() {
           </label>
           <input
             type="number"
-            value={distance}
-            onChange={(e) => setDistance(e.target.value)}
+            value={values.distance}
+            onChange={(e) => updateValues({ distance: e.target.value })}
             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:text-white"
           />
         </div>
@@ -92,30 +105,30 @@ export default function TimeDistanceCalculator() {
           </label>
           <input
             type="number"
-            value={groundSpeed}
-            onChange={(e) => setGroundSpeed(e.target.value)}
+            value={values.groundSpeed}
+            onChange={(e) => updateValues({ groundSpeed: e.target.value })}
             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:text-white"
           />
         </div>
 
         <div className="col-span-1 sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Time ({timeUnit === 'minutes' ? 'Minutes' : 'Hours'})
+            Time ({values.timeUnit === 'minutes' ? 'Minutes' : 'Hours'})
           </label>
           <div className="flex gap-2">
             <input
               type="number"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
+              value={values.time}
+              onChange={(e) => updateValues({ time: e.target.value })}
               className="mt-1 w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:text-white"
             />
             <button
               onClick={() =>
-                setTimeUnit(timeUnit === 'minutes' ? 'hours' : 'minutes')
+                updateValues({ timeUnit: values.timeUnit === 'minutes' ? 'hours' : 'minutes' })
               }
               className="text-xs bg-gray-200 dark:bg-gray-600 px-2 rounded hover:bg-gray-300 dark:hover:bg-gray-500"
             >
-              ⇄ {timeUnit === 'minutes' ? 'Switch to Hours' : 'Switch to Minutes'}
+              ��, {values.timeUnit === 'minutes' ? 'Switch to Hours' : 'Switch to Minutes'}
             </button>
           </div>
         </div>
@@ -143,19 +156,19 @@ export default function TimeDistanceCalculator() {
       {showFormula && (
         <div className="text-sm text-gray-600 dark:text-gray-400 space-y-3 mt-2">
           <div>
-            <p><strong>Distance</strong> = Ground Speed × Time</p>
+            <p><strong>Distance</strong> = Ground Speed A- Time</p>
             <p className="text-xs">
               Use this to find how far you can fly in a given time at a certain speed.
             </p>
           </div>
           <div>
-            <p><strong>Time</strong> = Distance ÷ Ground Speed</p>
+            <p><strong>Time</strong> = Distance A� Ground Speed</p>
             <p className="text-xs">
               Use this when you know the distance and speed and want to know time enroute.
             </p>
           </div>
           <div>
-            <p><strong>Ground Speed</strong> = Distance ÷ Time</p>
+            <p><strong>Ground Speed</strong> = Distance A� Time</p>
             <p className="text-xs">
               Use this to check actual speed from flight time and logged distance.
             </p>

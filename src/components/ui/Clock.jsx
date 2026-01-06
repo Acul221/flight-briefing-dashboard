@@ -9,8 +9,17 @@ const getColorClass = (deviation) => {
   return "text-red-500";
 };
 
+const loadStored = () => {
+  try {
+    const raw = localStorage.getItem("rac-latest");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function RACClockWidget() {
-  const [summary, setSummary] = useState(null);
+  const [summary] = useState(loadStored);
   const [localTime, setLocalTime] = useState("");
   const [utcTime, setUtcTime] = useState("");
 
@@ -40,21 +49,14 @@ export default function RACClockWidget() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("rac-latest");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setSummary(parsed);
-      } catch {
-        console.warn("Invalid RAC data in localStorage");
-      }
-    }
-  }, []);
-
-  const etd = summary?.etd || "—";
-  const pb = summary?.pb?.actualTime || "—";
+  const etd = summary?.etd || "-";
+  const pb = summary?.pb?.actualTime || "-";
   const dev = summary?.etdDeviation ?? null;
+
+  // Currently only clocks are rendered; the RAC summary values are kept for future UI.
+  void getColorClass(dev);
+  void etd;
+  void pb;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -73,5 +75,4 @@ export default function RACClockWidget() {
       </div>
     </div>
   );
-  
 }

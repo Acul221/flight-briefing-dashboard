@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import MainLayout from "@/layouts/MainLayout";
 
@@ -12,7 +12,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("profiles")
@@ -26,11 +26,17 @@ export default function AdminUsers() {
       setList(data || []);
     }
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    let active = true;
+    Promise.resolve()
+      .then(() => (active ? load() : null))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [load]);
 
   const callFn = async (payload) => {
     const res = await fetch("/.netlify/functions/admin-users", {

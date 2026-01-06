@@ -40,7 +40,11 @@ export default function PricingPage() {
   const isGuest = !session;
 
   useEffect(() => {
-    try { logEvent("pricing_view", { highlightPlan }); } catch {}
+    try {
+      logEvent("pricing_view", { highlightPlan });
+    } catch {
+      /* noop */
+    }
   }, [highlightPlan]);
 
   const toLogin = () => {
@@ -58,7 +62,11 @@ export default function PricingPage() {
     setErrorMsg("");
 
     try {
-      try { logEvent("pricing_subscribe_click", { plan: planId }); } catch {}
+      try {
+        logEvent("pricing_subscribe_click", { plan: planId });
+      } catch {
+        /* noop */
+      }
 
       // 1) Pastikan user sudah login (double-check dari Supabase)
       const { data: { session: s } } = await supabase.auth.getSession();
@@ -124,7 +132,11 @@ export default function PricingPage() {
     setPendingPlan({ id: planId, label: planLabel });
 
     if (!session) {
-      try { logEvent("pricing_gate_open", { plan: planId }); } catch {}
+      try {
+        logEvent("pricing_gate_open", { plan: planId });
+      } catch {
+        /* noop */
+      }
       setGateOpen(true);
       return;
     }

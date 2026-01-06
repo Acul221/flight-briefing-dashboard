@@ -1,12 +1,20 @@
 export default async (request, context) => {
   const url = new URL(request.url);
-  const isAdminFn =
-    url.pathname.startsWith("/.netlify/functions/notion-import") ||
-    url.pathname.startsWith("/.netlify/functions/submit-question") ||
-    url.pathname.startsWith("/.netlify/functions/questions") ||
-    url.pathname.startsWith("/.netlify/functions/categories");
+  const allowedFns = [
+    "/.netlify/functions/submit-question",
+    "/.netlify/functions/quiz-pull",
+    "/.netlify/functions/rpc-health",
+  ];
+  const isFunction = url.pathname.startsWith("/.netlify/functions/");
+  const isAdminFn = allowedFns.some((p) => url.pathname.startsWith(p));
 
-  if (!isAdminFn) return context.next();
+  // Block any other function endpoints
+  if (isFunction && !isAdminFn) {
+    return new Response(JSON.stringify({ error: "blocked" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
 
   // Allowlist origin (admin only)
   const origin = request.headers.get("origin") || "";

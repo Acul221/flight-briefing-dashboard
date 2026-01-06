@@ -30,8 +30,7 @@ const PrivacyToolsPage = lazy(() => import("./pages/PrivacyToolsPage"));
 /* ---------------- Quiz & Exam ---------------- */
 const OverviewPage    = lazy(() => import("./pages/quiz/OverviewPage"));
 const SubCategoryGrid = lazy(() => import("./pages/quiz/SubCategoryGrid"));
-const QuizPage        = lazy(() => import("./pages/QuizPage"));
-const ResultPage      = lazy(() => import("./pages/ResultPage"));
+const QuizPage        = lazy(() => import("./pages/quiz/QuizPage"));
 const ExamPage        = lazy(() => import("./modules/exam/ExamPage"));
 const QuizShell       = lazy(() => import("./layouts/QuizShell")); // ✅ new: sidebar shell for quiz
 
@@ -54,6 +53,8 @@ const AdminOrders           = lazy(() => import("./pages/admin/AdminOrders"));
 const AdminNewsletter       = lazy(() => import("./pages/admin/AdminNewsletter"));
 const AdminCategories       = lazy(() => import("./pages/admin/CategoryManager"));
 const AdminNewsletterDetail = lazy(() => import("./pages/admin/AdminNewsletterDetail"));
+const AdminExamAttempts     = lazy(() => import("./pages/admin/AdminExamAttempts"));
+const AdminFlagsQueue       = lazy(() => import("./pages/admin/AdminFlagsQueue"));
 
 // 🔑 Master–Detail hub
 const QuestionsHub          = lazy(() => import("./pages/admin/QuestionsHub"));
@@ -93,7 +94,7 @@ export default function App() {
             <Route index element={<OverviewPage />} />
             <Route path=":categorySlug" element={<SubCategoryGrid />} />
             <Route path=":categorySlug/:subjectSlug" element={<QuizPage />} />
-            <Route path="result/:attemptId" element={<ResultPage />} />
+            <Route path="result/:attemptId" element={<Navigate to="/quiz" replace />} />
           </Route>
 
           {/* Exam (protected) */}
@@ -184,6 +185,8 @@ export default function App() {
             <Route path="newsletter"  element={<AdminNewsletter />} />
             <Route path="newsletter/:campaignId" element={<AdminNewsletterDetail />} />
             <Route path="categories"  element={<AdminCategories />} />
+            <Route path="exam-attempts" element={<AdminExamAttempts />} />
+            <Route path="flags" element={<AdminFlagsQueue />} />
 
             {/* ✅ Master–Detail Questions Hub */}
             <Route path="questions" element={<QuestionsHub />} />

@@ -1,31 +1,30 @@
-import { createClient } from "@supabase/supabase-js";
+// netlify/functions/rpc-health.js
+// Simple health check hitting fn_validate_rpc_health
 
-const sba = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE
-);
+const { createClient } = require("@supabase/supabase-js");
 
-export const handler = async (event) => {
+exports.handler = async () => {
   try {
-    const { data, error } = await sba.rpc("fn_validate_rpc_health");
+    const client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+      auth: { persistSession: false },
+    });
+    const { data, error } = await client.rpc("fn_validate_rpc_health");
     if (error) throw error;
-
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data, null, 2),
-    };
+    const ok = Array.isArray(data) ? data?.[0]?.ok ?? data?.[0] === true : data === true;
+    return resp(200, { ok: !!ok });
   } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error: "Health check failed",
-        details: err.message,
-      }),
-    };
+    return resp(500, { ok: false, error: err.message || "rpc_error" });
   }
 };
+
+function resp(statusCode, body) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+    },
+    body: JSON.stringify(body),
+  };
+}

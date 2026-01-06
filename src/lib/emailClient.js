@@ -1,9 +1,13 @@
+/* global process */
 // src/lib/emailClient.js
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-const EMAIL_FROM = `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM_ADDRESS}>`;
+const apiKey = typeof process !== "undefined" ? process.env.RESEND_API_KEY : "";
+const resend = new Resend(apiKey);
+const fromName = typeof process !== "undefined" ? process.env.EMAIL_FROM_NAME : "";
+const fromAddress = typeof process !== "undefined" ? process.env.EMAIL_FROM_ADDRESS : "";
+const publicBase = typeof process !== "undefined" ? process.env.PUBLIC_BASE_URL : "";
+const EMAIL_FROM = `${fromName} <${fromAddress}>`;
 
 /**
  * Kirim email via Resend API
@@ -18,7 +22,7 @@ export async function sendEmail({ to, subject, html }) {
     throw new Error("Missing required fields: to, subject, or html");
   }
 
-  const domain = process.env.EMAIL_FROM_ADDRESS?.split("@")[1];
+  const domain = fromAddress?.split("@")[1];
 
   try {
     const response = await resend.emails.send({
@@ -28,7 +32,7 @@ export async function sendEmail({ to, subject, html }) {
       html,
       headers: {
         // Gmail/Yahoo prefer emails with clear unsubscribe
-        "List-Unsubscribe": `<mailto:unsubscribe@${domain}>, <${process.env.PUBLIC_BASE_URL}/unsubscribe>`,
+        "List-Unsubscribe": `<mailto:unsubscribe@${domain}>, <${publicBase}/unsubscribe>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     });

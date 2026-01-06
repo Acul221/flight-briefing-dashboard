@@ -1,0 +1,65 @@
+{
+  "name": "Notion Import v3 Dry-run + Apply",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Webhook - Notion",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": { "path": "notion-import-hook", "method": "POST" }
+    },
+    {
+      "id": "2",
+      "name": "HTTP Dry-run",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "{{ $json.baseUrl || 'https://your-site.netlify.app' }}/.netlify/functions/notion-import-dryrun",
+        "method": "POST",
+        "sendBody": true,
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"rows\": {{$json.rows || [$json]}}}"
+      }
+    },
+    {
+      "id": "3",
+      "name": "Slack Notify",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "channel": "#imports",
+        "text": "Dry-run completed. Status: {{$json.status || 'see report'}}"
+      }
+    },
+    {
+      "id": "4",
+      "name": "Wait Approval",
+      "type": "n8n-nodes-base.wait",
+      "parameters": { "resumeWebhookId": "import-approve" }
+    },
+    {
+      "id": "5",
+      "name": "HTTP Apply",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "{{ $json.baseUrl || 'https://your-site.netlify.app' }}/.netlify/functions/notion-import-apply",
+        "method": "POST",
+        "sendBody": true,
+        "jsonParameters": true,
+        "bodyParametersJson": "{\"rows\": {{$json.rows || [$json]}}, \"dry_run\": false}"
+      }
+    },
+    {
+      "id": "6",
+      "name": "Slack Result",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "channel": "#imports",
+        "text": "Apply finished. Result: {{$json}}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Notion": { "main": [[{ "node": "HTTP Dry-run", "type": "main", "index": 0 }]] },
+    "HTTP Dry-run": { "main": [[{ "node": "Slack Notify", "type": "main", "index": 0 }, { "node": "Wait Approval", "type": "main", "index": 0 }]] },
+    "Wait Approval": { "main": [[{ "node": "HTTP Apply", "type": "main", "index": 0 }]] },
+    "HTTP Apply": { "main": [[{ "node": "Slack Result", "type": "main", "index": 0 }]] }
+  }
+}

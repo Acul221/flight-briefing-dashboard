@@ -12,9 +12,7 @@ export const asArray4 = (arr, fill = null) => {
 export function normalizeQuestion(q) {
   if (!q) return null;
 
-  const answerIndex = ["A", "B", "C", "D"].indexOf(
-    String(q.answer_key || "A").toUpperCase()
-  );
+  const answerIndex = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
 
   const choicesArr = Array.isArray(q.choices)
     ? q.choices
@@ -23,13 +21,12 @@ export function normalizeQuestion(q) {
   return {
     id: q.id,
     question: q.question_text || "",
-    questionImage: q.question_image_url || null,
+    question_image: q.question_image || null,
     choices: asArray4((choicesArr || []).map((c) => c ?? ""), ""),
     choiceImages: asArray4(q.choice_images, null),
     explanations: asArray4(q.explanations, ""),
     correctIndex: answerIndex >= 0 && answerIndex <= 3 ? answerIndex : 0,
     difficulty: q.difficulty || null,
-    tags: Array.isArray(q.tags) ? q.tags : [],
   };
 }
 
@@ -39,4 +36,3 @@ export function mmss(sec) {
   const r = s % 60;
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
-

@@ -1,5 +1,5 @@
 // src/pages/admin/AdminPromos.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { formatDate } from "@/utils/date";
 
@@ -45,11 +45,7 @@ export default function AdminPromos() {
 
   const isEditing = useMemo(() => Boolean(id), [id]);
 
-  useEffect(() => {
-    loadPromos();
-  }, []);
-
-  async function loadPromos() {
+  const loadPromos = useCallback(async () => {
     setFetching(true);
     setErrorMsg("");
     const { data, error } = await supabase
@@ -71,7 +67,17 @@ export default function AdminPromos() {
       setPromos(data || []);
     }
     setFetching(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.resolve()
+      .then(() => (active ? loadPromos() : null))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [loadPromos]);
 
   function resetForm() {
     setId(null);

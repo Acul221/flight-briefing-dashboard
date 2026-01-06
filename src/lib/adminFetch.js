@@ -32,7 +32,7 @@ export async function adminFetch(path, { method = "GET", body, headers = {} } = 
   });
 
   let json = {};
-  try { json = await res.json(); } catch (_) {}
+  try { json = await res.json(); } catch (_) { /* ignore parse errors */ }
 
   if (!res.ok) {
     const msg = json?.error || `HTTP ${res.status}`;

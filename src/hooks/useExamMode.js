@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/apiClient"; // singleton kamu
 import { logEvent } from "@/lib/analytics"; // sudah ada di project kamu
 
@@ -20,12 +20,17 @@ function shuffleDeterministic(arr, seed) {
   }
   return a;
 }
+const ensureLen4 = (arr, fill) => {
+  const base = Array.isArray(arr) ? arr.slice(0, 4) : [];
+  while (base.length < 4) base.push(fill);
+  return base;
+};
 
 export default function useExamMode() {
   const [attempt, setAttempt] = useState(null);     // { id, seed, ... }
   const [items, setItems] = useState([]);           // [{idx, question_id, ...}]
   const [questionList, setQuestionList] = useState([]); // normalized questions for runtime
-  const startedAtRef = useRef(null);
+  const [startedAt, setStartedAt] = useState(null);
 
   const startExam = useCallback(async ({
     categorySlug,
@@ -33,6 +38,8 @@ export default function useExamMode() {
     difficulty,
     aircraft,
     limit = 20,
+    requiresAircraft = false,
+    userTier = "free",
     timeLimitSec = 1200,  // default 20 menit
   }) => {
     // 1) Ambil soal (published) via API kamu
@@ -40,10 +47,10 @@ export default function useExamMode() {
       category_slug: categorySlug,
       include_descendants: includeDescendants ? "1" : "0",
       limit: String(limit),
-      shuffle: "1",
     });
     if (difficulty) params.set("difficulty", difficulty);
-    if (aircraft) params.set("aircraft", aircraft);
+    if (requiresAircraft) params.set("requires_aircraft", "true");
+    if (userTier) params.set("user_tier", userTier);
 
     const res = await fetch(`/.netlify/functions/quiz-pull?` + params.toString());
     if (!res.ok) throw new Error("Failed to pull questions");
@@ -51,9 +58,15 @@ export default function useExamMode() {
 
     // 2) Buat seed & urutkan deterministik (tambahan safety)
     const seed = Date.now(); // you can store userId-based salt later
-    const pruned = data.items.map((q) => ({
+    const pruned = (data.items || []).map((q) => ({
       id: q.id,
-      ...q,
+      question_text: q.question_text || "",
+      question_image: q.question_image || null,
+      choices: ensureLen4(q.choices, "").map((c) => String(c || "")),
+      choice_images: ensureLen4(q.choice_images, null).map((u) => (u ? String(u) : null)),
+      explanations: ensureLen4(q.explanations, "").map((e) => String(e || "")),
+      correctIndex:
+        Number.isInteger(q.correctIndex) && q.correctIndex >= 0 && q.correctIndex <= 3 ? q.correctIndex : null,
     }));
     const ordered = shuffleDeterministic(pruned, seed);
 
@@ -78,7 +91,7 @@ export default function useExamMode() {
     setAttempt(ins);
     setQuestionList(ordered);
     setItems([]);
-    startedAtRef.current = performance.now();
+    setStartedAt(performance.now());
 
     logEvent("exam_start", { attempt_id: ins.id, categorySlug, difficulty, aircraft, limit });
     return { attempt: ins, questions: ordered };
@@ -145,8 +158,8 @@ export default function useExamMode() {
     attempt,
     questionList,
     items,
-    startedAt: startedAtRef.current,
-  }), [attempt, items, questionList]);
+    startedAt,
+  }), [attempt, items, questionList, startedAt]);
 
   return { state, startExam, recordAnswer, finalizeExam };
 }

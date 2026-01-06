@@ -1,0 +1,87 @@
+/* netlify/functions/notion-import-apply.js */
+/* eslint-disable no-console */
+import { normalizeRow, validateCanonical } from "../../src/utils/import-utils.js";
+import { rehostImage } from "../../src/utils/rehostImage.js";
+
+const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET;
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Secret, x-admin-secret",
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+  "Content-Type": "application/json",
+};
+const json = (s, b) => ({ statusCode: s, headers: CORS, body: JSON.stringify(b) });
+
+function hasAdminAuth(headers) {
+  const secret = headers["x-admin-secret"] || headers["X-Admin-Secret"] || headers["x-admin-secret"];
+  const auth = headers.authorization || headers.Authorization;
+  const hasSecret = ADMIN_API_SECRET && secret === ADMIN_API_SECRET;
+  const hasBearer = auth && String(auth).startsWith("Bearer ");
+  return hasSecret || hasBearer;
+}
+
+export async function handler(event) {
+  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
+  if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
+
+  try {
+    if (!hasAdminAuth(event.headers || {})) return json(401, { error: "unauthorized" });
+    const body = event.body ? JSON.parse(event.body) : {};
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const dryRun = body.dry_run === true;
+    const results = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const normalized = normalizeRow(row);
+      const { ok, errors } = validateCanonical(normalized);
+      if (!ok) {
+        results.push({ row_index: i, status: "error", errors, normalized });
+        continue;
+      }
+
+      if (dryRun) {
+        results.push({ row_index: i, status: "ok", dry_run: true, normalized });
+        continue;
+      }
+
+      // Apply mode: rehost images and post to admin-create-question
+      const choicesHosted = [];
+      const imagesMeta = { choices: [], question: null };
+      for (let c = 0; c < 4; c++) {
+        const hosted = await rehostImage(normalized.choice_images?.[c]);
+        choicesHosted[c] = hosted.url;
+        imagesMeta.choices[c] = hosted.meta;
+      }
+      const hostedQuestion = await rehostImage(normalized.question_image_url);
+      const qImgUrl = hostedQuestion.url;
+      imagesMeta.question = hostedQuestion.meta;
+
+      const payload = {
+        ...normalized,
+        question_image_url: qImgUrl,
+        choice_images: choicesHosted,
+        images_meta: imagesMeta,
+        status: "draft",
+      };
+
+      const res = await fetch("/.netlify/functions/admin-create-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const jsonRes = await res.json().catch(() => ({}));
+      if (!res.ok || jsonRes.error) {
+        results.push({ row_index: i, status: "error", errors: [jsonRes.error || `HTTP ${res.status}`], normalized });
+      } else {
+        results.push({ row_index: i, status: "ok", id: jsonRes.id || null });
+      }
+    }
+
+    return json(200, { dry_run: dryRun, count: results.length, results });
+  } catch (err) {
+    console.error("notion-import-apply error", err);
+    return json(500, { error: err.message || "internal_error" });
+  }
+}

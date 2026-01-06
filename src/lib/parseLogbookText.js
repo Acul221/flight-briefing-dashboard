@@ -25,7 +25,7 @@ export function parseLogbookText(text) {
      * - Air time: h:mm atau m:ss
      */
     const regex =
-      /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\d{1,2}[A-Z]{3})\s+([A-Z]{3,4})[-/ ]([A-Z]{3,4})\s+(\d{2}[:.]?\d{2})[\/ ](\d{2}[:.]?\d{2})\s*(PIC|SIC)?\s*([A-Z0-9]+)?\s*(\d+[:.]\d{2})?/;
+      /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\d{1,2}[A-Z]{3})\s+([A-Z]{3,4})[-/ ]([A-Z]{3,4})\s+(\d{2}[:.]?\d{2})[/ ](\d{2}[:.]?\d{2})\s*(PIC|SIC)?\s*([A-Z0-9]+)?\s*(\d+[:.]\d{2})?/;
 
     const m = norm.match(regex);
     if (!m) return null;

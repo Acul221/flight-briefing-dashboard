@@ -1,18 +1,26 @@
 // src/pages/admin/AdminSubscriptions.jsx
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AdminSubscriptions() {
   const [subs, setSubs] = useState([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await supabase
       .from("subscriptions")
       .select("user_id,plan,status,current_period_end");
     setSubs(data || []);
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    let active = true;
+    Promise.resolve()
+      .then(() => (active ? load() : null))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [load]);
 
   return (
     <div>

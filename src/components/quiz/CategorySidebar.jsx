@@ -9,56 +9,27 @@ export default function CategorySidebar({ categories = [], activeSlug = null, lo
   const params = useParams();
   const current = activeSlug || params.categorySlug || params.aircraft || null;
 
-  // Local fetch (v3 schema) to ensure consistency with mirror (submit-question / notion-import-v3)
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(true);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    let abort = new AbortController();
-    (async () => {
-      setBusy(true);
-      setErr("");
-      try {
-        const u = new URL(`${FN_BASE}/categories`, window.location.origin);
-        const res = await fetch(u.toString().replace(window.location.origin, ""), {
-          signal: abort.signal,
-          headers: { accept: "application/json" },
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || `load_failed_${res.status}`);
-        const arr = Array.isArray(json.categories) ? json.categories : [];
-        // v3 mapping + safety filter
-        const mapped = arr
-          .map((r) => ({
-            id: r.id,
-            slug: r.category_slug || r.slug,
-            label: r.category_name || r.name || r.label,
-            is_active: r.is_active !== false,
-            parent_id: r.parent_id ?? null,
-            requires_aircraft: !!r.requires_aircraft,
-            access_tier: r.access_tier || null,
-          }))
-          .filter((r) => r.is_active && !r.parent_id);
-        setItems(mapped);
-      } catch (e) {
-        if (e.name !== "AbortError") setErr(e.message || String(e));
-        setItems([]);
-      } finally {
-        setBusy(false);
-      }
-    })();
-    return () => abort.abort();
+    // Categories tree endpoint removed; rely on passed-in categories or remain empty.
+    setItems([]);
+    setBusy(false);
+    setErr("");
   }, []);
 
   const list = useMemo(() => {
-    // prefer locally fetched v3 items; fallback to props if provided
     if (items && items.length) return items;
-    if (categories && categories.length) return categories.map((c) => ({
-      id: c.id,
-      slug: c.slug,
-      label: c.label,
-    }));
+    if (categories && categories.length) {
+      return categories.map((c) => ({
+        id: c.id,
+        slug: c.slug,
+        label: c.label,
+        access_tier: c.access_tier,
+      }));
+    }
     return [];
   }, [items, categories]);
 

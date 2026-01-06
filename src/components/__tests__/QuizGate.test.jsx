@@ -1,3 +1,4 @@
+/* eslint-env vitest */
 import React from "react";
 import { render, screen } from "@/tests/test-utils";
 import { vi } from "vitest";

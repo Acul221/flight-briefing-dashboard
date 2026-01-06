@@ -1,0 +1,36 @@
+-- Table definition for public.questions_v3 (canonical Quiz V3 schema)
+create table if not exists public.questions_v3 (
+  id uuid primary key default gen_random_uuid(),
+  question_text text not null,
+  question_image text null,
+  choices text[] not null check (array_length(choices, 1) = 4),
+  choice_images text[] not null default array[null, null, null, null] check (array_length(choice_images, 1) = 4),
+  explanations text[] not null default array['', '', '', ''] check (array_length(explanations, 1) = 4),
+  correct_index int not null check (correct_index between 0 and 3),
+  category_slugs jsonb not null default '[]'::jsonb check (jsonb_array_length(category_slugs) > 0),
+  category_path jsonb not null default '[]'::jsonb,
+  difficulty text not null default 'medium',
+  requires_aircraft boolean not null default false,
+  aircraft jsonb not null default '[]'::jsonb,
+  access_tier text not null default 'free' check (access_tier in ('free', 'pro')),
+  exam_pool boolean not null default false,
+  status text not null default 'draft',
+  is_active boolean not null default true,
+  metadata jsonb not null default '{}'::jsonb,
+  images_meta jsonb not null default '{}'::jsonb,
+  domain text null,
+  subject text null,
+  subcategory text null,
+  ata text null,
+  source text null,
+  imported_at timestamptz not null default now(),
+  imported_by uuid null,
+  last_edited_at timestamptz null,
+  last_edited_by uuid null,
+  version int not null default 1,
+  qc_checklist jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_questions_v3_category on public.questions_v3 using gin (category_slugs);

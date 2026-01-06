@@ -4,6 +4,11 @@ import { logEvent } from "@/lib/analytics";
 
 export default function useQuizSession({ aircraft, subject }) {
   const storageKey = useMemo(() => `quiz:${aircraft}:${subject}`, [aircraft, subject]);
+  const ensureLen4 = (arr, fill = "") => {
+    const base = Array.isArray(arr) ? arr.slice(0, 4) : [];
+    while (base.length < 4) base.push(fill);
+    return base;
+  };
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -66,14 +71,13 @@ export default function useQuizSession({ aircraft, subject }) {
         // Map ke shape UI (QuestionCard kompatibel)
         const mapped = items.map((q) => ({
           id: q.id,
-          legacy_id: q.legacy_id || null,
-          question: q.question || "",
-          questionImage: q.image || null,
-          choices: Array.isArray(q.choices) ? q.choices : [],
-          choiceImages: Array.isArray(q.choiceImages) ? q.choiceImages : [null, null, null, null],
-          explanations: Array.isArray(q.explanations) ? q.explanations : ["", "", "", ""],
-          correctIndex: Number.isInteger(q.correctIndex) ? q.correctIndex : 0,
-          tags: Array.isArray(q.tags) ? q.tags : [],
+          question_text: q.question_text || "",
+          question_image: q.question_image || null,
+          choices: ensureLen4(q.choices, "").map((c) => String(c || "")),
+          choice_images: ensureLen4(q.choice_images, null).map((u) => (u ? String(u) : null)),
+          explanations: ensureLen4(q.explanations, "").map((e) => String(e || "")),
+          correctIndex:
+            Number.isInteger(q.correctIndex) && q.correctIndex >= 0 && q.correctIndex <= 3 ? q.correctIndex : null,
           difficulty: q.difficulty || null,
           source: q.source || null,
         }));
@@ -160,9 +164,9 @@ export default function useQuizSession({ aircraft, subject }) {
   // ===== Prefetch gambar soal berikutnya =====
   useEffect(() => {
     const nextQ = questions[currentIndex + 1];
-    if (nextQ?.questionImage) {
+    if (nextQ?.question_image) {
       const img = new Image();
-      img.src = nextQ.questionImage;
+      img.src = nextQ.question_image;
     }
   }, [questions, currentIndex]);
 

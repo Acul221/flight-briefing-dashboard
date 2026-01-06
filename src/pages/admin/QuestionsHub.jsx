@@ -3,8 +3,19 @@ import React, { useCallback, useMemo, useState } from "react";
 import QuestionsListPanel from "@/components/admin/QuestionsListPanel";
 import QuestionEditorPanel from "@/components/admin/QuestionEditorPanel";
 import QuestionEditor from "@/components/admin/QuestionEditor";
+import { useSearchParams } from "react-router-dom";
 
 export default function QuestionsHub() {
+  const [searchParams] = useSearchParams();
+  const prefillParam = searchParams.get("prefill");
+  let prefill = null;
+  if (prefillParam) {
+    try {
+      prefill = JSON.parse(decodeURIComponent(prefillParam));
+    } catch (_) {
+      // ignore malformed prefill
+    }
+  }
   const [selectedId, setSelectedId] = useState(null);   // null = create baru
   const [filters, setFilters] = useState({
     q: "",
@@ -39,7 +50,7 @@ export default function QuestionsHub() {
           </div>
           <span className="text-[11px] text-slate-500">Admin / Questions</span>
         </div>
-        <QuestionEditor />
+        <QuestionEditor prefill={prefill} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_1fr] gap-4">

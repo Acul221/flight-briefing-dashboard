@@ -14,7 +14,7 @@ export default function NotamBox({ icao, title = "NOTAMs", trigger }) {
         const res = await fetch(`/.netlify/functions/fetch-notam?icao=${icao}`);
         const data = await res.json();
         setNotams(data);
-      } catch (err) {
+      } catch {
         setNotams([{ Text: "⚠️ Failed to fetch NOTAM data." }]);
       }
       setLoading(false);

@@ -24,21 +24,31 @@ export default function NavbarMarquee() {
   const [text, setText] = useState("");
 
   useEffect(() => {
+    let active = true;
     const newText = `${getTimeGreeting()} ${getRandom(humor)} ${getRandom(tips)}`;
-    setText(newText);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (active) setText(newText);
+    return () => {
+      active = false;
+    };
   }, [index]);
 
   useEffect(() => {
+    let active = true;
     const containerWidth = containerRef.current?.offsetWidth || 0;
     const textWidth = textRef.current?.scrollWidth || 0;
     const distance = containerWidth + textWidth;
-    setXDistance(distance);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (active) setXDistance(distance);
 
     const timer = setTimeout(() => {
-      setIndex((prev) => prev + 1);
+      if (active) setIndex((prev) => prev + 1);
     }, (distance / 50) * 1000 + 5000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [text]);
 
   return (

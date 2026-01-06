@@ -24,7 +24,7 @@ import App from "./App.jsx";
     el.setAttribute("data-theme", theme);
     // Also toggle Tailwind's 'dark' class (if you ever use dark: variants)
     el.classList.toggle("dark", theme === DARK);
-    try { localStorage.setItem("theme", theme); } catch {}
+    try { localStorage.setItem("theme", theme); } catch { /* noop */ }
   }
 
   try {
@@ -33,7 +33,7 @@ import App from "./App.jsx";
       applyTheme(saved);
       return;
     }
-  } catch {}
+  } catch { /* noop */ }
 
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
   applyTheme(prefersDark ? DARK : LIGHT);

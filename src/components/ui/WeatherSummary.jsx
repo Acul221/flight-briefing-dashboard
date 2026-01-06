@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import IcaoInput from "./IcaoInput";
 import ReasoningBox from "./ReasoningBox";
 import NotamBox from "./NotamBox";
@@ -37,7 +37,7 @@ export default function WeatherSummary() {
     }
   };
 
-  const handleUpdate = async () => {
+  const handleUpdate = useCallback(async () => {
     setLoadingWeather(true);
     setLoadingNotam(true);
     setAiText("");
@@ -105,11 +105,17 @@ export default function WeatherSummary() {
       additional: !!additional,
     });
     setLoadingNotam(false);
-  };
+  }, [additional, departure, dest]);
 
   useEffect(() => {
-    handleUpdate();
-  }, []);
+    let active = true;
+    Promise.resolve()
+      .then(() => (active ? handleUpdate() : null))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [handleUpdate]);
 
   const handleIcaoChange = (field, value) => {
     const uppercaseValue = value.toUpperCase();

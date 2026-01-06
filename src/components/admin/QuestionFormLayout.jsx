@@ -8,7 +8,7 @@ export default function QuestionFormLayout({
   form = {},
   onChange = () => {},
   onSubmit = () => {},
-  categoriesTree = [],              // [{id,label,slug,requires_aircraft,pro_only,children:[...]}]
+  categoriesTree = [],              // intentionally unused (legacy tree disabled)
   saving = false,
   requiresAircraft = false,    // fallback flag dari parent (opsional)
   onNormalizedChange,
@@ -20,35 +20,13 @@ export default function QuestionFormLayout({
     return a;
   };
 
-  /* ---------- categories ---------- */
-  const parents = useMemo(() => categoriesTree || [], [categoriesTree]);
-  const parentNode = useMemo(
-    () => parents.find((p) => p.label === (form.category || "")) || null,
-    [parents, form.category]
-  );
-  const children = parentNode?.children || [];
-  const childNode = useMemo(
-    () => children.find((c) => c.label === (form.subcategory || "")) || null,
-    [children, form.subcategory]
-  );
-
-  // child > parent > prop fallback
-  const mustAircraft =
-    (childNode?.requires_aircraft ?? parentNode?.requires_aircraft ?? false) ||
-    requiresAircraft;
-
-  useEffect(() => {
-    if (parentNode && form.subcategory) {
-      const ok = children.some((c) => c.label === form.subcategory);
-      if (!ok) onChange("subcategory", "");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.category]);
+  /* ---------- categories (stubbed; tree disabled in V3) ---------- */
+  const mustAircraft = requiresAircraft;
 
   /* ---------- local arrays (stabil per render) ---------- */
   const answers = ensureLen4(form.answers, "");
   const explanations = ensureLen4(form.explanations, "");
-  const choiceImages = ensureLen4(form.choiceImages, null);
+  const choiceImages = ensureLen4(form.choice_images, null);
 
   const setArrayItem = (field, idx, val) => {
     const base =
@@ -80,7 +58,7 @@ export default function QuestionFormLayout({
         label: `${form.category || "cat"}-${form.subcategory || "sub"}-question`,
         prefix: "q",
       });
-      onChange("questionImage", publicUrl); // builder akan map ke questionImageUrl
+      onChange("question_image", publicUrl);
       setUpMsg("Question image uploaded");
     } catch (e) {
       setUpMsg(`Upload failed: ${e.message || e}`);
@@ -96,7 +74,7 @@ export default function QuestionFormLayout({
       });
       const next = choiceImages.slice();
       next[i] = publicUrl;
-      onChange("choiceImages", next);
+      onChange("choice_images", next);
       setUpMsg(`Choice ${String.fromCharCode(65 + i)} image uploaded`);
     } catch (e) {
       setUpMsg(`Upload failed: ${e.message || e}`);
@@ -130,74 +108,35 @@ export default function QuestionFormLayout({
     >
       {upMsg && <div className="alert alert-info">{upMsg}</div>}
 
-      {/* ID (opsional) */}
-      <div>
-        <label className="label">ID (optional / legacy_id)</label>
-        <input
-          className="input input-bordered w-full"
-          placeholder="e.g., ICAO-ALTIMETER-005"
-          value={form.id || ""}
-          onChange={(e) => onChange("id", e.target.value)}
-        />
-      </div>
-
-      {/* Category & SubCategory */}
+      {/* Category & SubCategory (tree disabled in V3; free text only) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="label">Category</label>
-          <select
-            className={`select select-bordered w-full ${
-              validationErrors.category ? "select-error border-error" : ""
-            }`}
+          <label className="label">Category (sluggable)</label>
+          <input
+            className={`input input-bordered w-full ${validationErrors.category ? "border-error focus:border-error" : ""}`}
+            placeholder="e.g., airframe"
             value={form.category || ""}
             onChange={(e) => onChange("category", e.target.value)}
             aria-invalid={validationErrors.category ? "true" : "false"}
             aria-describedby={validationErrors.category ? "category-error" : undefined}
-          >
-            <option value="">— select —</option>
-            {parents.map((p) => (
-              <option key={p.id} value={p.label}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-          <input
-            className="input input-bordered w-full mt-2"
-            placeholder="Or type new category"
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v) onChange("category", v);
-            }}
           />
           {validationErrors.category && (
             <p id="category-error" className="mt-1 text-sm text-error">
               {validationErrors.category}
             </p>
           )}
+          <p className="text-xs text-base-content/70 mt-1">
+            Category tree is disabled in Quiz V3; importer will create slugs from these values.
+          </p>
         </div>
 
         <div>
-          <label className="label">SubCategory</label>
-          <select
-            className="select select-bordered w-full"
+          <label className="label">SubCategory (optional, sluggable)</label>
+          <input
+            className="input input-bordered w-full"
+            placeholder="e.g., hydraulics"
             value={form.subcategory || ""}
             onChange={(e) => onChange("subcategory", e.target.value)}
-            disabled={!parentNode || children.length === 0}
-          >
-            <option value="">— select —</option>
-            {children.map((c) => (
-              <option key={c.id} value={c.label}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <input
-            className="input input-bordered w-full mt-2"
-            placeholder="Or type new subcategory"
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v) onChange("subcategory", v);
-            }}
           />
         </div>
       </div>
@@ -225,17 +164,17 @@ export default function QuestionFormLayout({
       {/* Question Image uploader */}
       <div className="grid grid-cols-1 gap-2">
         <label className="label">Question Image (optional)</label>
-        {form.questionImage ? (
+        {form.question_image ? (
           <div className="mb-2">
             <img
-              src={form.questionImage}
+              src={form.question_image}
               alt="question"
               className="max-h-40 rounded border"
             />
             <button
               type="button"
               className="btn btn-xs mt-2"
-              onClick={() => onChange("questionImage", "")}
+              onClick={() => onChange("question_image", "")}
             >
               Clear
             </button>
@@ -395,16 +334,6 @@ export default function QuestionFormLayout({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="label">Tags (CSV)</label>
-          <input
-            className="input input-bordered w-full"
-            placeholder="atpl, human-factor"
-            value={form.tags || ""}
-            onChange={(e) => onChange("tags", e.target.value)}
-          />
-        </div>
-
         <div>
           <label className="label">
             Aircraft {mustAircraft ? "(required)" : "(optional)"}

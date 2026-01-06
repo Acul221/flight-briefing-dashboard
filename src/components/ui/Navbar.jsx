@@ -7,7 +7,9 @@ import NavbarMarquee from '@/components/ui/NavbarMarquee';
 
 function Navbar({ toggleSidebar }) {
   const [open, setOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem('theme') === 'dark'; } catch { return false; }
+  });
   const [showNotification, setShowNotification] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const dropdownRef = useRef(null);
@@ -17,12 +19,14 @@ function Navbar({ toggleSidebar }) {
   ];
 
   useEffect(() => {
-    const storedMode = localStorage.getItem('theme');
-    if (storedMode === 'dark') {
+    if (darkMode) {
       document.documentElement.classList.add('dark');
-      setDarkMode(true);
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
     }
-  }, []);
+  }, [darkMode]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -43,13 +47,6 @@ function Navbar({ toggleSidebar }) {
   }, []);
 
   const toggleDarkMode = () => {
-    if (darkMode) {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    } else {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    }
     setDarkMode(!darkMode);
     triggerNotification(darkMode ? 'Light Mode On' : 'Dark Mode On');
   };

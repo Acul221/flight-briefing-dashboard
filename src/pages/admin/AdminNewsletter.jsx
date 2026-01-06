@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/apiClient";
 
 import {
@@ -9,19 +9,13 @@ import {
   Tooltip, Legend,
   ResponsiveContainer
 } from "recharts";
-import { Link } from "react-router-dom";
 
 export default function AdminNewsletter() {
   const [summary, setSummary] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchSummary();
-    fetchLogs();
-  }, []);
-
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       const res = await fetch("/.netlify/functions/get-newsletters");
       const json = await res.json();
@@ -30,13 +24,26 @@ export default function AdminNewsletter() {
       console.error("Error fetching summary:", err);
     }
     setLoading(false);
-  };
+  }, []);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     const { data, error } = await supabase.rpc("get_newsletter_logs");
     if (error) console.error("Error fetching logs:", error);
     else setLogs(data || []);
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.resolve()
+      .then(() => (active ? fetchSummary() : null))
+      .catch(() => {});
+    Promise.resolve()
+      .then(() => (active ? fetchLogs() : null))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [fetchSummary, fetchLogs]);
 
   if (loading) return <div className="p-6">Loading newsletter analytics…</div>;
 

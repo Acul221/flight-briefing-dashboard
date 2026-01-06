@@ -10,6 +10,9 @@ jobs:
   build:
     name: Node CI
     runs-on: ubuntu-latest
+    env:
+      # Toggle Playwright in CI; set to 'true' to run browser E2E tests
+      RUN_PLAYWRIGHT: 'true'
     strategy:
       matrix:
         node-version: [18.x]
@@ -36,6 +39,9 @@ jobs:
         run: npm run lint
         # if you want linter errors to not fail CI, change to "continue-on-error: true"
 
+      - name: Security audit (high severity, prod deps)
+        run: npm audit --production --audit-level=high
+
       - name: Run unit tests
         env:
           CI: true
@@ -46,9 +52,42 @@ jobs:
         if: env.RUN_PLAYWRIGHT == 'true'
         run: npx playwright install --with-deps
 
+      - name: Run Playwright tests (guarded by RUN_PLAYWRIGHT)
+        if: env.RUN_PLAYWRIGHT == 'true'
+        run: npx playwright test
+
+      - name: Run Playwright tests against live functions (netlify dev)
+        if: env.RUN_PLAYWRIGHT == 'true'
+        env:
+          PLAYWRIGHT_USE_LIVE: "1"
+          NETLIFY_DEV: "1"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_QUESTION: ${{ secrets.NOTION_DB_QUESTION }}
+          OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}
+          AVWX_API_KEY: ${{ secrets.AVWX_API_KEY }}
+          MIDTRANS_SERVER_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
+        run: |
+          # start netlify dev in background on port 8888
+          (npx netlify dev -p 8888 > /tmp/netlify.log 2>&1) &
+          NETLIFY_PID=$!
+          # wait for dev server to be ready
+          npx wait-on http://localhost:8888
+          # run quiz runtime spec against live functions
+          npx playwright test tests/playwright/quiz-runtime.spec.ts --project=chromium
+          # stop netlify dev
+          kill $NETLIFY_PID
+          sleep 2
+
       - name: Upload test report (if exists)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vitest-results
-          path: test-results || vitest-output || playwright-report || ''
+          name: test-results
+          path: |
+            test-results
+            vitest-output
+            playwright-report

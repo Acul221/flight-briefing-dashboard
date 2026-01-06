@@ -62,7 +62,9 @@ export default function RACDelayPage() {
         localStorage.removeItem?.("RAC_ETD");
         localStorage.removeItem?.("RAC_BO");
         localStorage.removeItem?.("RAC_PB");
-      } catch (e) {}
+      } catch (e) {
+        // noop cleanup
+      }
     } catch (e) {
       // ignore in test env
     }

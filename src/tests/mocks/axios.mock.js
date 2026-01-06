@@ -1,5 +1,4 @@
 // src/tests/mocks/axios.mock.js
-import axios from "axios";
 import { vi } from "vitest";
 
 vi.mock("axios", () => {

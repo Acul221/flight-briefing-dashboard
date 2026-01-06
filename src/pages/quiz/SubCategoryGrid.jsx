@@ -21,36 +21,10 @@ export default function SubCategoryGrid() {
   }, [categorySlug]);
 
   useEffect(() => {
-    let abort = new AbortController();
-    (async () => {
-      setLoading(true);
-      setErr("");
-      try {
-        const res = await fetch(`${FN_BASE}/categories?parent_slug=${encodeURIComponent(categorySlug)}`, {
-          signal: abort.signal,
-          headers: { accept: "application/json" },
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || `Failed to load subcategories (${res.status})`);
-        const raw = Array.isArray(json.categories) ? json.categories : [];
-        const mapped = raw.map((r) => ({
-          id: r.id,
-          slug: r.category_slug || r.slug,
-          label: r.category_name || r.name || r.label,
-          description: r.description || r.note || "",
-          exam_pool: !!r.exam_pool,
-        }));
-        setItems(mapped);
-      } catch (e) {
-        if (e.name !== "AbortError") {
-          setErr(e.message || String(e));
-          setItems([]);
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-    return () => abort.abort();
+    // Categories tree removed; no subcategories available.
+    setItems([]);
+    setErr("");
+    setLoading(false);
   }, [categorySlug]);
 
   const onStart = (subjectSlug) => {

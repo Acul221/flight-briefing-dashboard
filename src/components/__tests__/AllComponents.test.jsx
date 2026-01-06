@@ -1,3 +1,4 @@
+/* eslint-env vitest */
 // src/components/__tests__/AllComponents.test.jsx
 import React from 'react';
 import { renderWithRouter } from '@/test-utils';

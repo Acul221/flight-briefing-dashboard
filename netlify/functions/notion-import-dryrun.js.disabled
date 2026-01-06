@@ -1,0 +1,53 @@
+/* netlify/functions/notion-import-dryrun.js */
+/* eslint-disable no-console */
+import { normalizeRow, validateCanonical } from "../../src/utils/import-utils.js";
+
+const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET;
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Secret, x-admin-secret",
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+  "Content-Type": "application/json",
+};
+const json = (s, b) => ({ statusCode: s, headers: CORS, body: JSON.stringify(b) });
+
+function hasAdminAuth(headers) {
+  const secret = headers["x-admin-secret"] || headers["X-Admin-Secret"] || headers["x-admin-secret"];
+  const auth = headers.authorization || headers.Authorization;
+  const hasSecret = ADMIN_API_SECRET && secret === ADMIN_API_SECRET;
+  const hasBearer = auth && String(auth).startsWith("Bearer ");
+  return hasSecret || hasBearer;
+}
+
+export async function handler(event) {
+  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
+  if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
+
+  try {
+    if (!hasAdminAuth(event.headers || {})) return json(401, { error: "unauthorized" });
+    const payload = event.body ? JSON.parse(event.body) : {};
+    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    const reports = rows.map((row, idx) => {
+      const normalized = normalizeRow(row);
+      const { ok, errors } = validateCanonical(normalized);
+      const status = ok ? "ok" : "error";
+      const would_create_categories =
+        !normalized.category_slugs?.length ? [] : normalized.category_slugs.filter((s) => s && s.split("/").length > 3);
+      return {
+        row_index: idx,
+        source_id: row.id || row.source_id || null,
+        title_preview: (normalized.question_text || "").slice(0, 60),
+        status,
+        errors,
+        would_create_categories,
+        normalized,
+      };
+    });
+
+    return json(200, { reports, count: reports.length, dry_run: true });
+  } catch (err) {
+    console.error("notion-import-dryrun error", err);
+    return json(500, { error: err.message || "internal_error" });
+  }
+}

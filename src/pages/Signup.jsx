@@ -11,7 +11,11 @@ export default async function onSignup({ email, password, fullName }) {
   });
   if (error) throw error;
 
-  try { await sendWelcomeEmail(email, fullName || "Pilot"); } catch {}
+  try {
+    await sendWelcomeEmail(email, fullName || "Pilot");
+  } catch {
+    /* noop */
+  }
 
   if (data?.user?.id) {
     await supabase

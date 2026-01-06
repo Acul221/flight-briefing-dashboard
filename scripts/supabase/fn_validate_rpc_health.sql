@@ -28,15 +28,22 @@ BEGIN
 
   -- Try to execute a sample query (safe)
   BEGIN
-    SELECT public.fn_get_questions_v3('ata27', 'a320', null, null, 1)
-    INTO v_sample;
+    SELECT jsonb_agg(q) INTO v_sample
+    FROM public.fn_get_questions_v3(
+      p_category_slug := 'ata27',
+      p_include_descendants := true,
+      p_difficulty := 'all',
+      p_requires_aircraft := false,
+      p_user_tier := 'free',
+      p_limit := 1
+    ) AS q;
   EXCEPTION
     WHEN others THEN
       v_sample := jsonb_build_object('error', SQLERRM);
   END;
 
   -- Check if response contains expected keys
-  IF v_sample ? 'success' AND v_sample ? 'questions' THEN
+  IF jsonb_typeof(v_sample) = 'array' THEN
     v_has_keys := true;
   END IF;
 

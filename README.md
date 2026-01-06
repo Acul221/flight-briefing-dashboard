@@ -22,7 +22,6 @@ This repository contains the web app and Netlify Functions powering the quiz/exa
   items: [
     {
       id: number,
-      legacy_id: string|null,
       question: string,
       image: string|null,
       choices: string[4],
@@ -33,7 +32,6 @@ This repository contains the web app and Netlify Functions powering the quiz/exa
       difficulty: 'easy'|'medium'|'hard'|null,
       source: string|null,
       aircraft: string|null,
-      tags: string[]
     }
   ],
   count: number,

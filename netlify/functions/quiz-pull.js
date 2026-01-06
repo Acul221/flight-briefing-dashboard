@@ -1,201 +1,141 @@
-/* netlify/functions/quiz-pull.js (v3) */
+// netlify/functions/quiz-pull.js
+// SkyDeckPro — Quiz Pull V3 (Netlify Runtime Compatible)
+
 const { createClient } = require("@supabase/supabase-js");
-
-const {
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE,
-} = process.env;
-
-const sba = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
-
-const HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-  "Content-Type": "application/json",
+const ensureLen4 = (arr, fill) => {
+  const base = Array.isArray(arr) ? arr.slice(0, 4) : [];
+  while (base.length < 4) base.push(fill);
+  return base;
 };
 
-function respond(status, body) {
-  return { statusCode: status, headers: HEADERS, body: JSON.stringify(body) };
-}
-
-function getBearerToken(event) {
-  const headers = event.headers || {};
-  const auth =
-    headers.Authorization ||
-    headers.authorization ||
-    headers["AUTHORIZATION"];
-  if (!auth || typeof auth !== "string") return null;
-
-  const match = auth.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1] : null;
-}
-
-function decodeJwtPayload(token) {
-  try {
-    const [, payload] = token.split(".");
-    if (!payload) return null;
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padding = normalized.length % 4 === 0 ? 0 : 4 - (normalized.length % 4);
-    const padded = normalized + "=".repeat(padding);
-    const json = Buffer.from(padded, "base64").toString("utf8");
-    return JSON.parse(json);
-  } catch (_) {
-    return null;
+// lightweight in-memory token bucket
+const _bucket = new Map();
+function rateLimit(key, limit = 40, windowMs = 60_000) {
+  const now = Date.now();
+  const item = _bucket.get(key) ?? { count: 0, ts: now };
+  if (now - item.ts > windowMs) {
+    item.count = 0;
+    item.ts = now;
+  }
+  item.count += 1;
+  _bucket.set(key, item);
+  if (item.count > limit) {
+    const e = new Error("Too Many Requests");
+    e.status = 429;
+    throw e;
   }
 }
 
-async function resolveUserTier(event, fallback = "free") {
-  const token = getBearerToken(event);
-  if (!token) return fallback;
-
-  const payload = decodeJwtPayload(token);
-  const userId = payload && payload.sub;
-  if (!userId) return fallback;
-
+exports.handler = async (event, context) => {
   try {
-    const { data, error } = await sba
-      .from("profiles")
-      .select("access_tier")
-      .eq("id", userId)
-      .limit(1);
+    const query = event.queryStringParameters || {};
 
-    if (error) return fallback;
-    const tier =
-      Array.isArray(data) && data.length > 0 ? data[0].access_tier : null;
-    return tier ? String(tier).toLowerCase() : fallback;
-  } catch (_) {
-    return fallback;
-  }
-}
-
-exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: HEADERS, body: "" };
-  if (event.httpMethod !== "GET") return respond(405, { error: "method_not_allowed" });
-
-  try {
-    // 🔹 Parse query
-    const qs = event.queryStringParameters || {};
-    const category_slug = (qs.category_slug || "").trim().toLowerCase();
-    const parent_slug = (qs.parent_slug || "").trim().toLowerCase() || null;
-    const mode = (qs.mode || "").trim().toLowerCase(); // e.g. "exam"
-    const tier = (qs.tier || "").trim().toLowerCase() || null;
-    const limit = Math.min(parseInt(qs.limit || "20", 10) || 20, 50);
-    const difficulty =
-      typeof qs.difficulty === "string" && qs.difficulty.trim()
-        ? qs.difficulty.trim()
-        : null;
-    const requires_aircraft =
-      typeof qs.requires_aircraft === "string" &&
-      qs.requires_aircraft.toLowerCase() === "true"
-        ? true
-        : null;
+    const {
+      category_slug,
+      include_descendants,
+      difficulty = "all",
+      requires_aircraft,
+      user_tier,
+      limit = 20,
+    } = query;
 
     if (!category_slug) {
-      return respond(400, { error: "Missing category_slug" });
+      return json(400, { ok: false, error: "missing_category_slug" });
     }
 
-    // 🔹 Auth resolve
-    const userTier = await resolveUserTier(event, "free");
+    // ------------------------------
+    // JWT → determine user tier
+    // ------------------------------
+    const authHeader = event.headers.authorization || "";
+    const jwt = authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
 
-    // 🔹 RPC call
-    const { data, error } = await sba.rpc("fn_get_questions_v3", {
+    let effectiveTier = user_tier || "free";
+
+    if (jwt) {
+      try {
+        const payload = JSON.parse(
+          Buffer.from(jwt.split(".")[1], "base64").toString("utf8")
+        );
+
+        if (payload?.user_metadata?.pro === true) effectiveTier = "pro";
+        if (payload?.tier) effectiveTier = payload.tier;
+      } catch (_) {}
+    }
+
+    // ------------------------------
+    // Supabase Client
+    // ------------------------------
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      { auth: { persistSession: false } }
+    );
+
+    const includeDesc = (include_descendants ?? "1").toString() !== "0";
+    const diffNorm = (difficulty || "all").toLowerCase();
+    const p_difficulty = ["easy", "medium", "hard"].includes(diffNorm)
+      ? diffNorm
+      : "all";
+
+    const p_requires_aircraft =
+      String(requires_aircraft ?? "false").toLowerCase() === "true";
+
+    const params = {
       p_category_slug: category_slug,
-      p_parent_slug: parent_slug,
-      p_mode: mode,
-      p_tier: tier,
-      p_user_tier: userTier,
-      p_limit: limit,
-      p_difficulty: difficulty,
-      p_requires_aircraft: requires_aircraft,
-    });
+      p_include_descendants: includeDesc,
+      p_difficulty,
+      p_requires_aircraft,
+      p_user_tier: effectiveTier,
+      p_limit: Number(limit) || 20,
+    };
+
+    const ip =
+      event.headers?.["cf-connecting-ip"] ||
+      event.headers?.["x-forwarded-for"] ||
+      event.headers?.["client-ip"] ||
+      "0.0.0.0";
+    rateLimit(String(ip));
+    console.log("[quiz-pull] params", params);
+
+    const { data, error } = await supabase.rpc(
+      "fn_get_questions_v3",
+      params
+    );
 
     if (error) {
-      console.error("[quiz-pull:error]", {
-        level: "error",
-        details: error?.message || error,
-        category_slug,
-        parent_slug,
-        mode,
-        tier,
-        userTier,
-        difficulty,
-        requires_aircraft,
-        time: new Date().toISOString(),
-      });
-      if (userTier !== "free") {
-        const fallbackResult = await sba.rpc("fn_get_questions_v3", {
-          p_category_slug: category_slug,
-          p_parent_slug: parent_slug,
-          p_mode: mode,
-          p_tier: tier,
-          p_user_tier: "free",
-          p_limit: limit,
-          p_difficulty: difficulty,
-          p_requires_aircraft: requires_aircraft,
-        });
-
-        if (!fallbackResult.error) {
-          // 🔹 Response
-          const fallbackData = fallbackResult.data || {};
-          const fallbackPayload = {
-            success: true,
-            category_slug,
-            parent_slug,
-            mode,
-            tier,
-            limit,
-            user_tier: "free",
-            difficulty,
-            requires_aircraft,
-            ...fallbackData,
-          };
-          fallbackPayload.user_tier = fallbackData.user_tier || "free";
-          fallbackPayload.difficulty = difficulty;
-          fallbackPayload.requires_aircraft = requires_aircraft;
-          if (!Array.isArray(fallbackPayload.questions)) fallbackPayload.questions = [];
-          if (typeof fallbackPayload.count !== "number") fallbackPayload.count = fallbackPayload.questions.length;
-          return respond(200, fallbackPayload);
-        }
-      }
-
-      return respond(500, {
-        error: "RPC failed",
-        details: error?.message || "Unknown error",
-      });
+      return json(500, { ok: false, error: "rpc_failed", details: error });
     }
 
-    // 🔹 Response
-    const payloadData = data || {};
-    const payload = {
-      success: true,
-      category_slug,
-      parent_slug,
-      mode,
-      tier,
-      limit,
-      user_tier: userTier,
-      difficulty,
-      requires_aircraft,
-      ...payloadData,
-    };
-    payload.user_tier = payloadData.user_tier || userTier;
-    payload.difficulty = difficulty;
-    payload.requires_aircraft = requires_aircraft;
-    if (!Array.isArray(payload.questions)) payload.questions = [];
-    if (typeof payload.count !== "number") payload.count = payload.questions.length;
+    const items = (data || []).map((q) => ({
+      ...q,
+      choice_images: ensureLen4(q.choice_images, null).map((u) => (u ? String(u) : null)),
+      correctIndex:
+        q.correctIndex ??
+        q.correct_index ??
+        (typeof q.correct_index === "number" ? q.correct_index : null),
+    }));
 
-    return respond(200, payload);
+    return json(200, { ok: true, count: items.length, items });
   } catch (err) {
-    console.error("[quiz-pull:error]", {
-      level: "error",
-      details: err?.message || err,
-      time: new Date().toISOString(),
-    });
-    return respond(500, {
-      error: "RPC failed",
-      details: err?.message || "Unknown error",
+    return json(500, {
+      ok: false,
+      error: "server_exception",
+      details: err.message,
     });
   }
 };
+
+// Helper: standard JSON output
+function json(statusCode, body) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "public, max-age=30",
+    },
+    body: JSON.stringify(body),
+  };
+}

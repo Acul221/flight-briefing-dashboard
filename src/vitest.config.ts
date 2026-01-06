@@ -15,5 +15,15 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/tests/vitest.setup.jsx',
     mockReset: true,
+    exclude: [
+      'node_modules/**',
+      'dist/**',
+      '.git/**',
+      '.idea/**',
+      '.vscode/**',
+      'tests/**',              // Playwright specs
+      'playwright-report/**',
+      'test-results/**',
+    ],
   },
 });

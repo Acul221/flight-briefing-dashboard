@@ -2,48 +2,56 @@
 import { useState, useMemo } from "react";
 import PropTypes from "prop-types";
 
+const ensureLen4 = (arr, fill) => {
+  const base = Array.isArray(arr) ? arr.slice(0, 4) : [];
+  while (base.length < 4) base.push(fill);
+  return base;
+};
+
 export default function QuestionCard({
-  question = { question: "", choices: [], explanations: [], choiceImages: [], correctIndex: 0 },
+  question = { question_text: "", choices: [], explanations: [], choice_images: [], correctIndex: null },
   index,
   total,
-  selected,        // index pilihan user (0..3) atau null
-  onSelect,        // (idx) => void
+  selected, // index pilihan user (0..3) atau null
+  onSelect, // (idx) => void
   showExplanation, // boolean
-  isReview,        // boolean
+  isReview, // boolean
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const stem = String(question?.stem ?? question?.question ?? question?.text ?? "");
-  const isLong = stem.length > 220;
-  const stemShort = isLong && !expanded ? stem.slice(0, 220) + "..." : stem;
+  const questionText = String(question?.question_text ?? "").trim();
+  const isLong = questionText.length > 220;
+  const questionPreview = isLong && !expanded ? `${questionText.slice(0, 220)}...` : questionText;
 
-  // jaga-jaga normalisasi choices/explanations
   const choices = useMemo(
-    () => (Array.isArray(question.choices) ? question.choices.map((c) => String(c || "")) : []),
-    [question.choices]
+    () => ensureLen4(question?.choices, "").map((c) => String(c || "")),
+    [question?.choices]
   );
   const explanations = useMemo(
-    () => (Array.isArray(question.explanations) ? question.explanations.map((e) => String(e || "")) : []),
-    [question.explanations]
+    () => ensureLen4(question?.explanations, "").map((e) => String(e || "")),
+    [question?.explanations]
   );
   const imgs = useMemo(
-    () => (Array.isArray(question.choiceImages) ? question.choiceImages.map((u) => (u ? String(u) : null)) : [null,null,null,null]),
-    [question.choiceImages]
+    () => ensureLen4(question?.choice_images, null).map((u) => (u ? String(u) : null)),
+    [question?.choice_images]
   );
-  const correctIndex = Number.isInteger(question.correctIndex) ? question.correctIndex : 0;
+  const correctIndex =
+    Number.isInteger(question?.correctIndex) && question.correctIndex >= 0 && question.correctIndex <= 3
+      ? question.correctIndex
+      : null;
 
   return (
     <div className="mb-6 border p-4 rounded-lg bg-base-100 shadow">
       <p className="text-xs opacity-60 mb-1">
-        N°{String(index + 1).padStart(3, "0")} / {total} — ID: {question.legacy_id || question.id}
+        Q{String(index + 1).padStart(3, "0")} / {total} — ID: {question.id || "-"}
       </p>
 
       <h3 className="font-semibold mb-2">Question {index + 1}</h3>
-      {stem?.trim() && <p className="mb-3 leading-relaxed">{stemShort}</p>}
+      {questionText && <p className="mb-3 leading-relaxed">{questionPreview}</p>}
 
-      {question.questionImage && (
+      {question.question_image && (
         <img
-          src={question.questionImage}
+          src={question.question_image}
           alt="Question"
           className="max-h-60 rounded mb-4 border"
           loading="lazy"
@@ -53,7 +61,7 @@ export default function QuestionCard({
       <div className="space-y-2" role="listbox" aria-label="Answer choices">
         {choices.map((text, i) => {
           const isSelected = selected === i;
-          const isCorrect = i === correctIndex;
+          const isCorrect = typeof correctIndex === "number" && i === correctIndex;
           const showExpForThis =
             !!showExplanation || !!isReview || (typeof selected === "number" && (isSelected || isCorrect));
           return (
@@ -92,25 +100,20 @@ export default function QuestionCard({
         })}
       </div>
 
-      {/** single explanation (opsional): tampilkan kalau mau */}
-      {showExplanation && (question.explanation || "").trim() && (
-        <div className="mt-3 alert alert-info text-sm">{question.explanation}</div>
-      )}
     </div>
   );
 }
 
 QuestionCard.propTypes = {
   question: PropTypes.shape({
-    question: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
+    question_text: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
     choices: PropTypes.array,
     explanations: PropTypes.array,
-    choiceImages: PropTypes.array,
+    choice_images: PropTypes.array,
     correctIndex: PropTypes.number,
-    explanation: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
-    questionImage: PropTypes.string,
+    question_image: PropTypes.string,
     id: PropTypes.any,
-    legacy_id: PropTypes.any,
+    explanation: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
   }),
   index: PropTypes.number,
   total: PropTypes.number,
@@ -119,5 +122,3 @@ QuestionCard.propTypes = {
   showExplanation: PropTypes.bool,
   isReview: PropTypes.bool,
 };
-
-
