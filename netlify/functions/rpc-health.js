@@ -1,24 +1,32 @@
 // netlify/functions/rpc-health.js
+// Internal RPC health check for fn_validate_rpc_health
+
 const { createClient } = require("@supabase/supabase-js");
 
 exports.handler = async () => {
   try {
     const client = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE,   // ← WAJIB SERVICE ROLE
+      process.env.SUPABASE_SERVICE_ROLE,  // MUST use service role
       { auth: { persistSession: false } }
     );
 
     const { data, error } = await client.rpc("fn_validate_rpc_health");
     if (error) throw error;
 
-    return resp(200, { ok: true, data });
+    return respond(200, {
+      ok: true,
+      data,
+    });
   } catch (err) {
-    return resp(500, { ok: false, error: err.message || "rpc_error" });
+    return respond(500, {
+      ok: false,
+      error: err?.message ?? "rpc_error",
+    });
   }
 };
 
-function resp(statusCode, body) {
+function respond(statusCode, body) {
   return {
     statusCode,
     headers: {
